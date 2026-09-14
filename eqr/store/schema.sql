@@ -129,6 +129,16 @@ CREATE TABLE IF NOT EXISTS dossiers (
 
 CREATE TABLE IF NOT EXISTS holidays (trade_date DATE PRIMARY KEY, note VARCHAR, seen_at TIMESTAMP);
 
+-- Prospective (out-of-sample, forward-looking) ledger: each month-end a sleeve version publishes
+-- its held names; realised forward returns are filled once they mature. Append-only. This is the
+-- only clean proof left after the holdout was inspected — the clock starts at each version's freeze.
+CREATE TABLE IF NOT EXISTS prospective_ledger (
+  sleeve VARCHAR, engine_version VARCHAR, freeze_date DATE, as_of DATE, symbol VARCHAR,
+  rank INTEGER, weight DOUBLE, close_at_signal DOUBLE, published_at TIMESTAMP,
+  horizon_days INTEGER, matured_at DATE, fwd_return DOUBLE, bench_return DOUBLE,
+  outcome VARCHAR,                                          -- pending | hit | miss | delisted
+  PRIMARY KEY (sleeve, engine_version, as_of, symbol));
+
 CREATE TABLE IF NOT EXISTS factor_anomalies (
   symbol VARCHAR, ex_date DATE, factor DOUBLE, kind VARCHAR, reason VARCHAR, PRIMARY KEY (symbol, ex_date));
 

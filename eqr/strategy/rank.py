@@ -41,6 +41,9 @@ def rank_sleeve(con: duckdb.DuckDBPyConnection, cfg: SleeveConfig, as_of: date,
     if store:
         con.execute("DELETE FROM ranks WHERE as_of = ? AND sleeve = ?", [as_of, cfg.name])
         upsert(con, "ranks", tbl)
+        # publish to the prospective ledger — a no-op before the version freeze / off a month-end
+        from ..validate.prospective import publish
+        publish(con, cfg.name, as_of=as_of)
     return tbl
 
 

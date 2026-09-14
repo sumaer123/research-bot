@@ -341,6 +341,29 @@ def trials(seed: bool = typer.Option(False, "--seed", help="backfill the ledger 
 
 
 @app.command()
+def prospective(action: str = typer.Argument("report", help="publish | score | report"),
+                sleeve: str = typer.Option("L", "--sleeve"),
+                engine: Optional[str] = typer.Option(None, "--engine", help="engine version, e.g. L-v1"),
+                as_of: Optional[str] = typer.Option(None, "--as-of")):
+    """Forward-looking (out-of-sample) ledger: publish month-end holdings, score matured rows, report."""
+    from .store import connect
+    from .validate import prospective as pr
+    con = connect()
+    try:
+        if action == "publish":
+            out = pr.publish(con, sleeve.upper(), engine, as_of=_d(as_of))
+        elif action == "score":
+            out = pr.score(con, sleeve.upper(), engine, as_of_max=_d(as_of))
+        elif action == "report":
+            out = pr.report(con, sleeve.upper(), engine)
+        else:
+            raise typer.BadParameter("action must be publish | score | report")
+        typer.echo(json.dumps(out, default=str, indent=1))
+    finally:
+        con.close()
+
+
+@app.command()
 def web(host: Optional[str] = typer.Option(None, "--host"), port: Optional[int] = typer.Option(None, "--port")):
     """Serve the dashboard and advisor API."""
     import uvicorn
