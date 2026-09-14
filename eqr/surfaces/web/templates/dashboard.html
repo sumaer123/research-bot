@@ -1,0 +1,41 @@
+{% extends "base.html" %}{% block title %}Dashboard{% endblock %}
+{% block body %}
+<h1>Sumaer Research Bot</h1>
+<div class="grid">
+  <div class="card"><h2>Regime</h2>
+    {% if regime %}
+    <div class="kv"><div>Date</div><div>{{ regime.trade_date.date() if regime.trade_date.date else regime.trade_date }}</div>
+      <div>Label</div><div><span class="pill {{ 'good' if regime.regime == 'RISK_ON' else ('bad' if regime.regime == 'RISK_OFF' else 'warn') }}">{{ regime.regime }}</span> exposure {{ '%.0f' % (regime.exposure * 100) }}%</div>
+      <div>NIFTY 500</div><div>{{ '%.0f' % regime.nifty500 }} vs 200-DMA {{ '%.0f' % regime.dma200 if regime.dma200 == regime.dma200 else 'n/a' }}</div>
+      <div>India VIX</div><div>{{ '%.2f' % regime.vix }} (1y pct {{ '%.0f' % (regime.vix_pct * 100) if regime.vix_pct == regime.vix_pct else 'n/a' }}%)</div></div>
+    {% else %}<p class="muted">No regime rows yet — run <code>eqr features</code>.</p>{% endif %}
+  </div>
+  <div class="card"><h2>Data freshness</h2>
+    <div class="kv"><div>Last session</div><div>{{ fr.last_session }} ({{ fr.sessions }} sessions)</div>
+      <div>Features</div><div>{{ fr.last_features }} ({{ fr.feature_dates }} dates)</div>
+      <div>Statements</div><div>{{ fr.statements_symbols }} symbols, fetched {{ fr.statements_fetched_at }}</div></div>
+    <h3>Quality (last run)</h3>
+    {% if fr.quality|length %}<table>{% for q in fr.quality.itertuples() %}<tr><td>{{ q.check_name }}</td><td><span class="pill {{ 'good' if q.status == 'PASS' else 'bad' }}">{{ q.status }}</span></td><td class="muted">{{ q.detail }}</td></tr>{% endfor %}</table>
+    {% else %}<p class="muted">no checks recorded</p>{% endif %}
+  </div>
+  <div class="card"><h2>Validation</h2>
+    {% if bts|length %}<table><tr><th>Sleeve</th><th>Run</th><th>Verdict</th><th>Range</th></tr>
+    {% for b in bts.head(6).itertuples() %}<tr><td>{{ b.sleeve }}</td><td><a href="/backtests/{{ b.run_id }}">{{ b.run_id }}</a></td>
+      <td><span class="pill {{ 'good' if b.verdict == 'VALIDATED' else ('bad' if b.verdict == 'NOT VALIDATED' else '') }}">{{ b.verdict }}</span></td><td class="muted">{{ b.start_date }} → {{ b.end_date }}</td></tr>{% endfor %}</table>
+    {% else %}<p class="muted">no backtests yet</p>{% endif %}
+  </div>
+</div>
+{% for sl, tbl, ch in sleeves %}
+<h2>Sleeve {{ sl }} — {{ 'Compounders (monthly)' if sl == 'L' else 'Tactical (weekly)' }} {% if tbl|length %}<span class="muted">as of {{ tbl.as_of.iloc[0].date() }} · universe {{ tbl.universe_size.iloc[0] }} · regime {{ tbl.regime.iloc[0] }}</span>{% endif %}</h2>
+{% if ch.entries or ch.exits %}<p class="muted">Since {{ ch.prev }}: entries {{ ch.entries|join(', ') or '—' }} · exits {{ ch.exits|join(', ') or '—' }}</p>{% endif %}
+{% if tbl|length %}<div class="scroll"><table>
+<tr><th>#</th><th>Symbol</th><th>Name</th><th>Industry</th><th class="num">Score</th><th class="num">Weight</th><th class="num">Close</th><th class="num">Mcap ₹cr</th><th class="num">P/E</th><th class="num">12-1 mom</th><th class="num">Q</th><th class="num">V</th><th class="num">M</th><th class="num">LR</th></tr>
+{% for r in tbl.itertuples() %}<tr><td>{{ r.rank }}</td><td><a href="/symbol/{{ r.symbol }}">{{ r.symbol }}</a></td><td>{{ r.name or '' }}</td><td class="muted">{{ r.industry or '' }}</td>
+<td class="num">{{ '%.2f' % r.score }}</td><td class="num">{{ '%.1f%%' % (r.weight * 100) }}</td><td class="num">{{ '%.1f' % r.close if r.close == r.close else '' }}</td>
+<td class="num">{{ '{:,.0f}'.format(r.mcap_cr) if r.mcap_cr == r.mcap_cr else '' }}</td><td class="num">{{ '%.1f' % r.pe_ttm if r.pe_ttm == r.pe_ttm else '' }}</td>
+<td class="num">{{ '%.0f%%' % (r.mom_12_1 * 100) if r.mom_12_1 == r.mom_12_1 else '' }}</td>
+<td class="num">{{ '%.1f' % r.z_quality if r.z_quality == r.z_quality else '' }}</td><td class="num">{{ '%.1f' % r.z_value if r.z_value == r.z_value else '' }}</td>
+<td class="num">{{ '%.1f' % r.z_momentum if r.z_momentum == r.z_momentum else '' }}</td><td class="num">{{ '%.1f' % r.z_lowrisk if r.z_lowrisk == r.z_lowrisk else '' }}</td></tr>{% endfor %}
+</table></div>{% else %}<p class="muted">No ranks yet — run <code>eqr rank --sleeve {{ sl }}</code>.</p>{% endif %}
+{% endfor %}
+{% endblock %}

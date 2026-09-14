@@ -1,0 +1,73 @@
+"""Settings from environment (.env loaded once). Paths are absolute."""
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass
+from pathlib import Path
+from zoneinfo import ZoneInfo
+
+from dotenv import load_dotenv
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+load_dotenv(PROJECT_ROOT / ".env")
+
+IST = ZoneInfo("Asia/Kolkata")
+UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+      "(KHTML, like Gecko) Chrome/126.0 Safari/537.36")
+
+
+def _env(name: str, default: str = "") -> str:
+    v = os.environ.get(name)
+    return v if v not in (None, "") else default
+
+
+@dataclass(frozen=True)
+class Settings:
+    data_dir: Path
+    rate_limit_s: float
+    proxy: str
+    advisor_token: str
+    web_host: str
+    web_port: int
+    telegram_token: str
+    telegram_chat_id: str
+    anthropic_api_key: str
+    claude_model: str
+    risk_free_pct: float
+
+    @property
+    def db_path(self) -> Path:
+        return self.data_dir / "eqr.duckdb"
+
+    @property
+    def raw_dir(self) -> Path:
+        return self.data_dir / "raw"
+
+    @property
+    def docs_dir(self) -> Path:
+        return self.data_dir / "docs"
+
+    @property
+    def packs_dir(self) -> Path:
+        return self.data_dir / "packs"
+
+    @property
+    def reports_dir(self) -> Path:
+        return self.data_dir / "reports"
+
+
+def settings() -> Settings:
+    data_dir = Path(_env("EQR_DATA_DIR", str(PROJECT_ROOT / "data"))).expanduser().resolve()
+    return Settings(
+        data_dir=data_dir,
+        rate_limit_s=float(_env("EQR_RATE_LIMIT_S", "1.0")),
+        proxy=_env("EQR_PROXY"),
+        advisor_token=_env("EQR_ADVISOR_TOKEN"),
+        web_host=_env("EQR_WEB_HOST", "127.0.0.1"),
+        web_port=int(_env("EQR_WEB_PORT", "8801")),
+        telegram_token=_env("TELEGRAM_BOT_TOKEN"),
+        telegram_chat_id=_env("TELEGRAM_CHAT_ID"),
+        anthropic_api_key=_env("ANTHROPIC_API_KEY"),
+        claude_model=_env("EQR_CLAUDE_MODEL", "claude-opus-5"),
+        risk_free_pct=float(_env("EQR_RISK_FREE_PCT", "6.0")),
+    )

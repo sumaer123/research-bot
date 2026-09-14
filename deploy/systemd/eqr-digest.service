@@ -1,0 +1,9 @@
+[Unit]
+Description=eqr Telegram digest
+
+[Service]
+Type=oneshot
+User=eqr
+WorkingDirectory=/opt/eqr
+EnvironmentFile=/opt/eqr/.env
+ExecStart=/opt/eqr/.venv/bin/eqr digest --send

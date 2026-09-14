@@ -1,0 +1,13 @@
+{% extends "base.html" %}{% block title %}Sleeve {{ sleeve }}{% endblock %}
+{% block body %}
+<h1>Sleeve {{ sleeve }} — top 100 {% if tbl|length %}<span class="muted">as of {{ tbl.as_of.iloc[0].date() }} · regime {{ tbl.regime.iloc[0] }} · universe {{ tbl.universe_size.iloc[0] }}</span>{% endif %}</h1>
+<p class="muted">Dates: {% for d in dates %}<a href="/ranks?sleeve={{ sleeve }}&as_of={{ d }}">{{ d }}</a>{{ ' · ' if not loop.last }}{% endfor %}</p>
+{% if tbl|length %}<div class="scroll"><table>
+<tr><th>#</th><th>Symbol</th><th>Name</th><th>Industry</th><th class="num">Score</th><th class="num">Weight</th><th class="num">Close</th><th class="num">Mcap ₹cr</th><th class="num">P/E</th><th class="num">Q</th><th class="num">V</th><th class="num">M</th><th class="num">LR</th></tr>
+{% for r in tbl.itertuples() %}<tr {% if r.weight > 0 %}style="background:#f3f8ff"{% endif %}><td>{{ r.rank }}</td><td><a href="/symbol/{{ r.symbol }}">{{ r.symbol }}</a></td><td>{{ r.name or '' }}</td><td class="muted">{{ r.industry or '' }}</td>
+<td class="num">{{ '%.2f' % r.score }}</td><td class="num">{{ '%.1f%%' % (r.weight * 100) if r.weight > 0 else '' }}</td><td class="num">{{ '%.1f' % r.close if r.close == r.close else '' }}</td>
+<td class="num">{{ '{:,.0f}'.format(r.mcap_cr) if r.mcap_cr == r.mcap_cr else '' }}</td><td class="num">{{ '%.1f' % r.pe_ttm if r.pe_ttm == r.pe_ttm else '' }}</td>
+<td class="num">{{ '%.1f' % r.z_quality if r.z_quality == r.z_quality else '' }}</td><td class="num">{{ '%.1f' % r.z_value if r.z_value == r.z_value else '' }}</td>
+<td class="num">{{ '%.1f' % r.z_momentum if r.z_momentum == r.z_momentum else '' }}</td><td class="num">{{ '%.1f' % r.z_lowrisk if r.z_lowrisk == r.z_lowrisk else '' }}</td></tr>{% endfor %}
+</table></div>{% else %}<p class="muted">No ranks for this sleeve/date.</p>{% endif %}
+{% endblock %}

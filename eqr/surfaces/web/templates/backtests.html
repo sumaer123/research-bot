@@ -1,0 +1,8 @@
+{% extends "base.html" %}{% block title %}Validation{% endblock %}
+{% block body %}
+<h1>Backtests and validation runs</h1>
+{% if bts|length %}<table><tr><th>Run</th><th>Sleeve</th><th>Range</th><th>Verdict</th><th>Created</th></tr>
+{% for b in bts.itertuples() %}<tr><td><a href="/backtests/{{ b.run_id }}">{{ b.run_id }}</a></td><td>{{ b.sleeve }}</td><td>{{ b.start_date }} → {{ b.end_date }}</td>
+<td><span class="pill {{ 'good' if b.verdict == 'VALIDATED' else ('bad' if b.verdict == 'NOT VALIDATED' else '') }}">{{ b.verdict }}</span></td><td class="muted">{{ b.created_at }}</td></tr>{% endfor %}</table>
+{% else %}<p class="muted">none yet — run <code>eqr validate --sleeve L</code></p>{% endif %}
+{% endblock %}

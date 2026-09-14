@@ -1,0 +1,12 @@
+[Unit]
+Description=eqr screener sweep + reference + monthly features/ranks
+
+[Service]
+Type=oneshot
+User=eqr
+WorkingDirectory=/opt/eqr
+EnvironmentFile=/opt/eqr/.env
+ExecStart=/opt/eqr/.venv/bin/eqr fundamentals --rate 1.5
+ExecStartPost=/opt/eqr/.venv/bin/eqr features
+ExecStartPost=/opt/eqr/.venv/bin/eqr rank --sleeve L
+ExecStartPost=/opt/eqr/.venv/bin/eqr rank --sleeve S

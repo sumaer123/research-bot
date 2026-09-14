@@ -1,0 +1,38 @@
+{% extends "base.html" %}{% block title %}{{ p.symbol }}{% endblock %}
+{% block body %}
+<h1>{{ p.symbol }} <span class="muted">{{ p.inst.get('name', '') }} · {{ p.inst.get('industry') or p.meta.get('industry') or '' }}</span></h1>
+<div class="grid">
+  <div class="card"><h2>Snapshot</h2><div class="kv">
+    <div>Close</div><div>{{ '%.2f' % p.feat.close if p.feat.get('close') == p.feat.get('close') and p.feat.get('close') is not none else '' }} <span class="muted">(features {{ p.feat.get('as_of') }})</span></div>
+    <div>Market cap</div><div>{{ '₹{:,.0f} cr'.format(p.feat.mcap_cr) if p.feat.get('mcap_cr') == p.feat.get('mcap_cr') and p.feat.get('mcap_cr') is not none else '' }}</div>
+    <div>P/E (TTM) · P/B</div><div>{{ '%.1f' % p.feat.pe_ttm if p.feat.get('pe_ttm') == p.feat.get('pe_ttm') and p.feat.get('pe_ttm') is not none else 'n/a' }} · {{ '%.2f' % p.feat.pb if p.feat.get('pb') == p.feat.get('pb') and p.feat.get('pb') is not none else 'n/a' }}</div>
+    <div>ROE · ROCE</div><div>{{ '%.1f%%' % (p.feat.roe * 100) if p.feat.get('roe') == p.feat.get('roe') and p.feat.get('roe') is not none else 'n/a' }} · {{ '%.1f%%' % (p.feat.roce * 100) if p.feat.get('roce') == p.feat.get('roce') and p.feat.get('roce') is not none else 'n/a' }}</div>
+    <div>Sales / PAT yoy (TTM)</div><div>{{ '%.1f%%' % (p.feat.sales_yoy_ttm * 100) if p.feat.get('sales_yoy_ttm') == p.feat.get('sales_yoy_ttm') and p.feat.get('sales_yoy_ttm') is not none else 'n/a' }} / {{ '%.1f%%' % (p.feat.pat_yoy_ttm * 100) if p.feat.get('pat_yoy_ttm') == p.feat.get('pat_yoy_ttm') and p.feat.get('pat_yoy_ttm') is not none else 'n/a' }}</div>
+    <div>12-1 momentum</div><div>{{ '%.0f%%' % (p.feat.mom_12_1 * 100) if p.feat.get('mom_12_1') == p.feat.get('mom_12_1') and p.feat.get('mom_12_1') is not none else 'n/a' }}</div>
+    <div>Vol (250d) · beta</div><div>{{ '%.0f%%' % (p.feat.vol_250 * 100) if p.feat.get('vol_250') == p.feat.get('vol_250') and p.feat.get('vol_250') is not none else 'n/a' }} · {{ '%.2f' % p.feat.beta_250 if p.feat.get('beta_250') == p.feat.get('beta_250') and p.feat.get('beta_250') is not none else 'n/a' }}</div>
+    <div>Buckets Q/V/M/LR</div><div>{% for k in ['z_quality','z_value','z_momentum','z_lowrisk'] %}{{ '%.2f' % p.feat[k] if p.feat.get(k) == p.feat.get(k) and p.feat.get(k) is not none else 'n/a' }}{{ ' / ' if not loop.last }}{% endfor %}</div>
+    <div>F-score · Altman Z''</div><div>{{ '%.0f/%.0f' % (p.feat.f_score, p.feat.f_known) if p.feat.get('f_score') == p.feat.get('f_score') and p.feat.get('f_score') is not none else 'n/a' }} · {{ '%.2f' % p.feat.altman_zpp if p.feat.get('altman_zpp') == p.feat.get('altman_zpp') and p.feat.get('altman_zpp') is not none else 'n/a' }}</div>
+    <div>Promoter %</div><div>{{ '%.1f%%' % p.feat.promoter_pct if p.feat.get('promoter_pct') == p.feat.get('promoter_pct') and p.feat.get('promoter_pct') is not none else 'n/a' }} ({{ '%+.1f' % p.feat.promoter_chg_1y if p.feat.get('promoter_chg_1y') == p.feat.get('promoter_chg_1y') and p.feat.get('promoter_chg_1y') is not none else 'n/a' }} pp/1y)</div>
+    <div>Flags</div><div>{% if p.feat.get('in_asm') %}<span class="pill bad">ASM</span>{% endif %}{% if p.feat.get('in_gsm') %}<span class="pill bad">GSM</span>{% endif %}{% if p.feat.get('in_fo_ban') %}<span class="pill warn">F&O ban</span>{% endif %}{% if p.feat.get('rankable') == 1 %}<span class="pill good">rankable</span>{% elif p.feat %}<span class="pill">not rankable</span>{% endif %}</div>
+  </div></div>
+  <div class="card"><h2>Ranks</h2>{% if p.ranks|length %}<table><tr><th>As of</th><th>Sleeve</th><th class="num">Rank</th><th class="num">Score</th><th class="num">Weight</th><th>Regime</th></tr>
+  {% for r in p.ranks.itertuples() %}<tr><td>{{ r.as_of.date() }}</td><td>{{ r.sleeve }}</td><td class="num">{{ r.rank }}/{{ r.universe_size }}</td><td class="num">{{ '%.2f' % r.score }}</td><td class="num">{{ '%.1f%%' % (r.weight * 100) if r.weight > 0 else '' }}</td><td>{{ r.regime }}</td></tr>{% endfor %}</table>{% else %}<p class="muted">not ranked</p>{% endif %}
+  {% if p.surveillance|length %}<h3>Surveillance</h3><table>{% for s in p.surveillance.itertuples() %}<tr><td>{{ s.as_of.date() }}</td><td>{{ s.list_name }}</td><td>stage {{ s.stage }}</td></tr>{% endfor %}</table>{% endif %}
+  </div>
+</div>
+<h2>Adjusted close, 1 year</h2>{{ svg|safe }}
+{% if p.factors|length %}<p class="muted">Adjustment factors: {% for f in p.factors.itertuples() %}{{ f.ex_date.date() }} ×{{ '%.4g' % f.factor }} ({{ f.kind }}){{ '; ' if not loop.last }}{% endfor %}</p>{% endif %}
+{% if p.dossier %}<h2>Claude dossier <span class="muted">{{ p.dossier.as_of }} · {{ p.dossier.model }} · {{ p.dossier.rating }} ({{ '%.0f%%' % (p.dossier.confidence * 100) }})</span></h2><div class="card report">{{ dossier_html|safe }}</div>{% endif %}
+<h2>Quarterly (₹ cr, consolidated preferred)</h2>
+{% if p.quarterly|length %}<div class="scroll"><table><tr><th></th>{% for c in p.quarterly.columns %}<th class="num">{{ c.strftime('%b %Y') }}</th>{% endfor %}</tr>
+{% for item, row in p.quarterly.iterrows() %}<tr><td>{{ item }}</td>{% for v in row %}<td class="num">{{ '{:,.0f}'.format(v) if v == v and (v|abs) >= 100 else ('%.2f' % v if v == v else '') }}</td>{% endfor %}</tr>{% endfor %}</table></div>{% else %}<p class="muted">no statements loaded</p>{% endif %}
+<h2>Annual</h2>
+{% if p.annual|length %}<div class="scroll"><table><tr><th></th><th></th>{% for c in p.annual.columns %}<th class="num">{{ c.strftime('%b %Y') }}</th>{% endfor %}</tr>
+{% for (st, item), row in p.annual.iterrows() %}<tr><td class="muted">{{ st }}</td><td>{{ item }}</td>{% for v in row %}<td class="num">{{ '{:,.0f}'.format(v) if v == v and (v|abs) >= 100 else ('%.2f' % v if v == v else '') }}</td>{% endfor %}</tr>{% endfor %}</table></div>{% endif %}
+<h2>Shareholding (%)</h2>
+{% if p.shareholding|length %}<div class="scroll"><table><tr><th></th>{% for c in p.shareholding.columns %}<th class="num">{{ c.strftime('%b %Y') }}</th>{% endfor %}</tr>
+{% for h, row in p.shareholding.iterrows() %}<tr><td>{{ h }}</td>{% for v in row %}<td class="num">{{ '%.2f' % v if v == v else '' }}</td>{% endfor %}</tr>{% endfor %}</table></div>{% endif %}
+<h2>Documents & announcements</h2>
+{% if p.documents|length %}<table><tr><th>Doc</th><th>Kind</th><th>Title</th><th>Visible from</th><th class="num">Pages</th></tr>{% for d in p.documents.itertuples() %}<tr><td><code>{{ d.doc_id }}</code></td><td>{{ d.kind }}</td><td>{{ d.title }}</td><td>{{ d.visible_from.date() }}</td><td class="num">{{ d.pages }}</td></tr>{% endfor %}</table>{% endif %}
+{% if p.announcements|length %}<table><tr><th>Date</th><th>Subject</th><th>Text</th></tr>{% for a in p.announcements.itertuples() %}<tr><td>{{ a.ann_dt.date() }}</td><td>{{ a.subject }}</td><td class="muted">{{ (a.description or '')[:160] }}</td></tr>{% endfor %}</table>{% else %}<p class="muted">no announcements fetched — run <code>eqr filings {{ p.symbol }}</code></p>{% endif %}
+{% endblock %}

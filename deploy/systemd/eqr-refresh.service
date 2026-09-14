@@ -1,0 +1,10 @@
+[Unit]
+Description=eqr EOD refresh (prices, index, snapshots, factors, universe, quality)
+
+[Service]
+Type=oneshot
+User=eqr
+WorkingDirectory=/opt/eqr
+EnvironmentFile=/opt/eqr/.env
+ExecStart=/opt/eqr/.venv/bin/eqr refresh
+ExecStartPost=/bin/bash -c "/opt/eqr/.venv/bin/eqr reference --from $(date -d '-45 days' +%%Y-%%m-%%d)"

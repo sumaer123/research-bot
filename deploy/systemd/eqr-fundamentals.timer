@@ -1,0 +1,9 @@
+[Unit]
+Description=eqr weekly fundamentals sweep, Saturday 02:00 IST (Friday 20:30 UTC)
+
+[Timer]
+OnCalendar=Fri *-*-* 20:30:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target

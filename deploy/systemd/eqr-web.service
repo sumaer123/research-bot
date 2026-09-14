@@ -1,0 +1,15 @@
+[Unit]
+Description=eqr web dashboard + advisor API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=eqr
+WorkingDirectory=/opt/eqr
+EnvironmentFile=/opt/eqr/.env
+ExecStart=/opt/eqr/.venv/bin/eqr web --host 127.0.0.1 --port 8801
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

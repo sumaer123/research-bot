@@ -1,0 +1,9 @@
+[Unit]
+Description=eqr nightly restic backup of data/ to Backblaze B2
+
+[Service]
+Type=oneshot
+User=eqr
+WorkingDirectory=/opt/eqr
+EnvironmentFile=/opt/eqr/.env
+ExecStart=/opt/eqr/deploy/backup.sh

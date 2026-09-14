@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}eqr{% endblock %} · Sumaer Research Bot</title>
+<style>
+  :root { --ink:#1b1f24; --muted:#5b6470; --line:#e3e6ea; --bg:#ffffff; --panel:#f7f8fa; --accent:#1f6feb; --good:#1a7f37; --bad:#b42318; --warn:#9a6700; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.45 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; color:var(--ink); background:var(--bg); }
+  header { border-bottom:1px solid var(--line); background:#fff; }
+  header .wrap { display:flex; gap:22px; align-items:center; padding:12px 20px; max-width:1200px; margin:0 auto; }
+  header a { color:var(--ink); text-decoration:none; font-weight:600; }
+  header a.brand { color:var(--accent); font-size:16px; }
+  header form { margin-left:auto; }
+  header input { padding:6px 10px; border:1px solid var(--line); border-radius:6px; width:180px; }
+  main { max-width:1200px; margin:0 auto; padding:18px 20px 60px; }
+  h1 { font-size:22px; margin:6px 0 14px; } h2 { font-size:17px; margin:22px 0 8px; } h3 { font-size:15px; margin:16px 0 6px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:14px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px 14px; }
+  .card h2 { margin-top:0; }
+  table { border-collapse:collapse; width:100%; font-size:13px; background:#fff; }
+  th, td { text-align:left; padding:5px 8px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  th { color:var(--muted); font-weight:600; background:#fafbfc; position:sticky; top:0; }
+  td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; }
+  .scroll { overflow-x:auto; }
+  .pill { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; font-weight:600; background:#eef2f7; color:var(--muted); }
+  .pill.good { background:#dafbe1; color:var(--good); } .pill.bad { background:#ffe5e2; color:var(--bad); } .pill.warn { background:#fff3c4; color:var(--warn); }
+  .muted { color:var(--muted); } .kv { display:grid; grid-template-columns:auto 1fr; gap:3px 14px; }
+  .kv div:nth-child(odd) { color:var(--muted); }
+  a { color:var(--accent); }
+  code { background:#eef2f7; padding:1px 4px; border-radius:4px; font-size:12px; }
+  .report table { width:auto; }
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <a class="brand" href="/">eqr</a>
+  <a href="/ranks?sleeve=L">Sleeve L</a>
+  <a href="/ranks?sleeve=S">Sleeve S</a>
+  <a href="/backtests">Validation</a>
+  <a href="/health">Health</a>
+  <form action="/symbol" method="get"><input name="s" placeholder="Symbol, e.g. RELIANCE" aria-label="symbol"></form>
+</div></header>
+<main>{% block body %}{% endblock %}</main>
+</body>
+</html>
