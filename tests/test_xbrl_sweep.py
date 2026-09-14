@@ -5,7 +5,6 @@ zero-cost resume without any network.
 """
 from __future__ import annotations
 
-import hashlib
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
@@ -36,7 +35,13 @@ class _FakeResult:
 
 
 class FakeHttp:
-    """Returns predefined bytes (or a synthetic status) for each URL."""
+    """Simulates Http.get_bytes: disk-cache check first (raw_rel), then url_map fallback.
+
+    Mirrors the real Http behaviour:
+    - If ``raw_dir / raw_rel`` exists and is non-empty → return "cached" (no calls logged).
+    - Otherwise look up url_map; on a successful fetch AND raw_rel given → write the
+      archive atomically (tmp.part → rename) so subsequent calls serve from cache.
+    """
 
     def __init__(self, url_map: dict, raw_dir: Optional[Path] = None):
         # url_map: { url -> bytes | "blocked" | "error" | "missing" }
@@ -46,6 +51,15 @@ class FakeHttp:
 
     def get_bytes(self, url: str, *, source: str, key: str,
                   raw_rel: Optional[str] = None) -> _FakeResult:
+        # 1. Disk-cache check (mirrors Http.get allow_cached path)
+        if raw_rel is not None and self.raw_dir is not None:
+            p = self.raw_dir / raw_rel
+            if p.exists() and p.stat().st_size > 0:
+                content = p.read_bytes()
+                return _FakeResult(status="cached", http_status=200,
+                                   content=content, bytes=len(content))
+
+        # 2. Network call (tracked)
         self.calls.append(url)
         val = self.url_map.get(url)
         if val is None:
@@ -55,6 +69,15 @@ class FakeHttp:
         if val == "error":
             return _FakeResult(status="error", error="connection error")
         content = val if isinstance(val, bytes) else val.encode()
+
+        # 3. Atomic write to disk (mirrors Http.get raw_rel path)
+        if raw_rel is not None and self.raw_dir is not None:
+            p = self.raw_dir / raw_rel
+            p.parent.mkdir(parents=True, exist_ok=True)
+            tmp = p.with_suffix(p.suffix + ".part")
+            tmp.write_bytes(content)
+            tmp.replace(p)
+
         return _FakeResult(status="ok", http_status=200,
                            content=content, bytes=len(content))
 
@@ -231,15 +254,14 @@ def test_sweep_writes_immutable_archive(tmp_db, tmp_path):
 
     sweep_xbrl(tmp_db, fake, rows, run_id="run-arc")
 
-    # Archive exists under nse/xbrl/TESTCO/
-    sha8 = hashlib.sha256(_Q2018_BYTES).hexdigest()[:8]
-    expected = tmp_path / f"nse/xbrl/TESTCO/2018-03-31_S_{sha8}.xml"
+    # Archive is stored under nse/xbrl/TESTCO/<url-basename>
+    expected = tmp_path / "nse/xbrl/TESTCO/q2018.xml"
     assert expected.exists(), f"archive not written to {expected}"
     assert expected.read_bytes() == _Q2018_BYTES
 
 
 # ---------------------------------------------------------------------------
-# Test: sha-named archive is never overwritten (immutability)
+# Test: archive is never overwritten (immutability via Http disk-cache path)
 # ---------------------------------------------------------------------------
 def test_sweep_archive_not_overwritten(tmp_db, tmp_path):
     from eqr.spine.xbrl import sweep_xbrl
@@ -249,15 +271,54 @@ def test_sweep_archive_not_overwritten(tmp_db, tmp_path):
     fake1 = FakeHttp({"https://fake/q2018.xml": _Q2018_BYTES}, raw_dir=tmp_path)
     sweep_xbrl(tmp_db, fake1, rows, run_id="run-1")
 
-    sha8 = hashlib.sha256(_Q2018_BYTES).hexdigest()[:8]
-    archive = tmp_path / f"nse/xbrl/TESTCO/2018-03-31_S_{sha8}.xml"
+    archive = tmp_path / "nse/xbrl/TESTCO/q2018.xml"
     mtime_1 = archive.stat().st_mtime
 
-    # Second sweep: zero-cost resume (no fetch), archive untouched
+    # Second sweep: xbrl_filings has sha256 → zero-cost DB skip; archive untouched
     fake2 = FakeHttp({"https://fake/q2018.xml": _Q2018_BYTES}, raw_dir=tmp_path)
     sweep_xbrl(tmp_db, fake2, rows, run_id="run-2")
 
     assert archive.stat().st_mtime == mtime_1, "archive mtime changed — file was overwritten"
+
+
+# ---------------------------------------------------------------------------
+# Test: disk-cache used after DB wipe (sha256 cleared) — covers I-1 + M-1
+# ---------------------------------------------------------------------------
+def test_sweep_disk_cache_after_db_wipe(tmp_db, tmp_path):
+    """After a successful sweep, if xbrl_filings.sha256 is cleared (DB wipe /
+    failed write scenario), a second sweep must serve content from the Http
+    disk cache — zero new network calls — and the archive file is unchanged."""
+    from eqr.spine.xbrl import sweep_xbrl
+
+    rows = [_cal_row("TESTCO", date(2018, 3, 31), "S",
+                     "https://fake/q2018_cache.xml", date(2018, 5, 15))]
+    url_map = {"https://fake/q2018_cache.xml": _Q2018_BYTES}
+
+    # First sweep: fetches, archives, loads
+    fake1 = FakeHttp(url_map, raw_dir=tmp_path)
+    out1 = sweep_xbrl(tmp_db, fake1, rows, run_id="run-1")
+    assert out1["loaded"] == 1
+    assert len(fake1.calls) == 1
+
+    archive = tmp_path / "nse/xbrl/TESTCO/q2018_cache.xml"
+    assert archive.exists(), "archive must be written on first sweep"
+    mtime_before = archive.stat().st_mtime
+    bytes_before = archive.read_bytes()
+
+    # Simulate DB wipe: clear sha256 so zero-cost resume check won't skip
+    tmp_db.execute("UPDATE xbrl_filings SET sha256 = NULL WHERE symbol = 'TESTCO'")
+
+    # Second sweep: empty url_map → network would fail; disk cache must serve
+    fake2 = FakeHttp({}, raw_dir=tmp_path)
+    out2 = sweep_xbrl(tmp_db, fake2, rows, run_id="run-2")
+
+    assert len(fake2.calls) == 0, "zero network calls — disk cache must be used"
+    assert out2["loaded"] == 1            # re-loaded from cache
+    assert out2["skipped"] == 0
+
+    # Archive untouched
+    assert archive.stat().st_mtime == mtime_before, "archive mtime changed"
+    assert archive.read_bytes() == bytes_before, "archive bytes changed"
 
 
 # ---------------------------------------------------------------------------
@@ -333,6 +394,57 @@ def test_quality_xbrl_screener_agreement_no_pairs(tmp_db):
     chk = {c["check_name"]: c for c in checks}
     assert chk["xbrl_screener_agreement"]["status"] == "PASS"
     assert "skipped" in chk["xbrl_screener_agreement"]["detail"]
+
+
+def test_quality_xbrl_screener_agreement_prefers_consolidated(tmp_db):
+    """When both consolidated (C) and standalone (S) XBRL FY revenue exist for
+    a symbol, the check must pick the consolidated value (basis='C').  If we
+    mistakenly pick standalone (which differs by >5%), the check would FAIL.
+    With the correct consolidated-first preference the pairs agree and it PASSes.
+    """
+    from eqr.spine.quality import run_checks
+    from eqr.spine.xbrl import parse_xbrl, load_parsed_xbrl
+
+    period_end = date(2024, 3, 31)
+    scr_rev = 5000.0   # screener consolidated FY sales
+
+    # Build consolidated XBRL: revenue = 5000 cr (agrees with screener)
+    def _make_xbrl(rev, basis_text):
+        start = str(period_end.replace(year=period_end.year - 1)).encode()
+        end = str(period_end).encode()
+        return (
+            b'<?xml version="1.0"?>'
+            b'<xbrli:xbrl xmlns:xbrli="http://www.xbrl.org/2003/instance"'
+            b' xmlns:in-bse-fin="http://www.bseindia.com/xbrl/fin/2018-03-31/in-bse-fin"'
+            b' xmlns:iso4217="http://www.xbrl.org/2003/iso4217">'
+            b'<xbrli:context id="D"><xbrli:period>'
+            b'<xbrli:startDate>' + start + b'</xbrli:startDate>'
+            b'<xbrli:endDate>' + end + b'</xbrli:endDate>'
+            b'</xbrli:period></xbrli:context>'
+            b'<xbrli:unit id="INR"><xbrli:measure>iso4217:INR</xbrli:measure></xbrli:unit>'
+            b'<in-bse-fin:LevelOfRoundingUsedInFinancialStatements contextRef="D">Crores'
+            b'</in-bse-fin:LevelOfRoundingUsedInFinancialStatements>'
+            b'<in-bse-fin:StandaloneConsolidated contextRef="D">' + basis_text + b'</in-bse-fin:StandaloneConsolidated>'
+            b'<in-bse-fin:RevenueFromOperations contextRef="D" unitRef="INR">' +
+            str(rev).encode() + b'</in-bse-fin:RevenueFromOperations>'
+            b'</xbrli:xbrl>'
+        )
+
+    # Consolidated filing: rev = 5000 cr (agrees with screener within 5%)
+    p_cons = parse_xbrl(_make_xbrl(5000.0, b"Consolidated"))
+    load_parsed_xbrl(tmp_db, "DUALCO", p_cons, period_end, "https://fake/DUALCO_C.xml")
+
+    # Standalone filing: rev = 1000 cr (differs by 80% — would cause FAIL if picked)
+    p_stand = parse_xbrl(_make_xbrl(1000.0, b"Standalone"))
+    load_parsed_xbrl(tmp_db, "DUALCO", p_stand, period_end, "https://fake/DUALCO_S.xml")
+
+    _insert_screener_revenue(tmp_db, "DUALCO", period_end, scr_rev)
+
+    checks = run_checks(tmp_db, "run-dual", date(2024, 12, 31))
+    chk = {c["check_name"]: c for c in checks}
+    assert chk["xbrl_screener_agreement"]["status"] == "PASS", (
+        "consolidated value should be preferred; FAIL means standalone was picked"
+    )
 
 
 # ---------------------------------------------------------------------------

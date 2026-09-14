@@ -25,7 +25,9 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass, field
 from datetime import date, datetime
+from pathlib import Path
 from typing import Optional
+from urllib.parse import urlparse
 
 import duckdb
 from lxml import etree
@@ -661,12 +663,14 @@ def sweep_xbrl(con: duckdb.DuckDBPyConnection, http, rows, run_id: str,
 
     Zero-cost resume: a row whose ``xbrl_url`` is already in ``xbrl_filings``
     with ``status != 'error'`` *and* a recorded ``sha256`` is skipped with **zero
-    network calls** — re-running an interrupted sweep is safe and cheap.
+    network calls**.
 
-    Immutable raw archive: bytes are saved to
-    ``<http.raw_dir>/nse/xbrl/<symbol>/<period_end>_<basis>_<sha8>.xml``
-    only if that file does not already exist.  The sha8 in the filename is the
-    first 8 hex chars of the SHA-256 of the bytes.
+    Raw archive: the Http client writes bytes atomically to
+    ``<http.raw_dir>/nse/xbrl/<symbol>/<url-basename>`` via its built-in
+    ``raw_rel`` parameter (atomic tmp→rename write; returns "cached" if the
+    file already exists so a DB-wipe scenario re-reads from disk, not the
+    network).  The SHA-256 of the fetched bytes is stored in ``xbrl_filings``
+    for the resume check — it does **not** appear in the filename.
 
     ``stop_after_blocked``: once this many consecutive *non-ok* fetches
     (blocked/403/error/empty) are counted the sweep halts early and sets
@@ -675,7 +679,6 @@ def sweep_xbrl(con: duckdb.DuckDBPyConnection, http, rows, run_id: str,
     n_loaded = n_skipped = n_errors = n_blocked_total = 0
     halted = False
     consecutive_bad = 0
-    fetched_at = datetime.now()
 
     for row in rows:
         symbol: str = row[0]
@@ -693,8 +696,12 @@ def sweep_xbrl(con: duckdb.DuckDBPyConnection, http, rows, run_id: str,
             n_skipped += 1
             continue
 
-        # ---- Fetch -------------------------------------------------------------
-        res = http.get_bytes(xbrl_url, source="xbrl", key=f"{symbol}_{period_end}_{basis}")
+        # ---- Fetch (Http handles atomic write + disk-cache for raw_rel) --------
+        url_basename = Path(urlparse(xbrl_url).path).name or f"{symbol}_{period_end}.xml"
+        raw_rel = f"nse/xbrl/{symbol}/{url_basename}"
+        res = http.get_bytes(xbrl_url, source="xbrl",
+                             key=f"{symbol}_{period_end}_{basis}",
+                             raw_rel=raw_rel)
 
         if not res.ok or not res.content:
             consecutive_bad += 1
@@ -711,16 +718,6 @@ def sweep_xbrl(con: duckdb.DuckDBPyConnection, http, rows, run_id: str,
 
         content: bytes = res.content
         sha256_hex = hashlib.sha256(content).hexdigest()
-        sha8 = sha256_hex[:8]
-        raw_rel = f"nse/xbrl/{symbol}/{period_end}_{basis}_{sha8}.xml"
-
-        # ---- Immutable archive -------------------------------------------------
-        raw_dir = getattr(http, "raw_dir", None)
-        if raw_dir is not None:
-            archive_path = raw_dir / raw_rel
-            if not archive_path.exists():
-                archive_path.parent.mkdir(parents=True, exist_ok=True)
-                archive_path.write_bytes(content)
 
         # ---- Parse + load ------------------------------------------------------
         try:

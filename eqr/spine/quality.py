@@ -64,13 +64,22 @@ def run_checks(con: duckdb.DuckDBPyConnection, run_id: str, as_of: date) -> list
     # check that ≥90 % of pairs agree within 5 % (both already in crore).
     try:
         pairs = con.execute("""
-            WITH xbrl_rev AS (
-                SELECT symbol, period_end, MAX(value) AS xbrl_rev
+            WITH xbrl_ranked AS (
+                SELECT symbol, period_end, basis, value,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY symbol, period_end
+                           ORDER BY CASE WHEN basis = 'C' THEN 0 ELSE 1 END,
+                                    value DESC
+                       ) AS rn
                 FROM statements_xbrl
                 WHERE item = 'revenue'
                   AND period_kind = 'FY'
                   AND visible_from <= ?
-                GROUP BY symbol, period_end
+                  AND value IS NOT NULL
+            ),
+            xbrl_rev AS (
+                SELECT symbol, period_end, value AS xbrl_rev
+                FROM xbrl_ranked WHERE rn = 1
             ),
             scr_rev AS (
                 SELECT symbol, period_end, value AS scr_rev
