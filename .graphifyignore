@@ -1,0 +1,37 @@
+# Graphify extraction exclusions (auto-scaffolded by gfy-onboard.sh).
+# Merged AFTER .gitignore; can only ever exclude more, never re-include.
+graphify-out/
+
+# ── Secrets ──
+.env
+.env.*
+**/*token*.json
+**/oauth*.json
+**/*credential*.json
+**/service-account*.json
+
+# ── Local data (never graph) ──
+data/
+**/*.sqlite
+**/*.db
+**/*.csv
+
+# ── macOS sync conflict copies: these silently duplicate a whole tree (a copied
+#    node_modules under "… (1)/" was 9.4M tokens in one project). ──
+* (1)
+* (1).*
+* (2)
+* (2).*
+
+# ── Build / vendored / generated ──
+node_modules/
+.next/
+.vercel/
+dist/
+build/
+__pycache__/
+.venv/
+venv/
+**/*.min.js
+**/*.bundle.js
+**/data.js

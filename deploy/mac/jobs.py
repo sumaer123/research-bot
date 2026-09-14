@@ -15,8 +15,8 @@ process (children inherit the parent's TCC responsibility).
 
 Mirrors the systemd units in deploy/systemd/ (launchd has no ExecStartPost):
 
-    jobs.py refresh        eqr refresh; eqr reference --from <45 days ago>
-    jobs.py fundamentals   eqr fundamentals --rate 1.5; features; rank L; rank S
+    jobs.py refresh        eqr refresh; eqr reference --from <45 days ago>; eqr rate --publish
+    jobs.py fundamentals   eqr fundamentals --rate 1.5; features; metrics; rank L; rank S; rate --recompute --publish
     jobs.py digest         eqr digest --send   (prints "sent": false until Telegram is set)
 
 Check the grant without guessing (run from a terminal that can read the TCC db):
@@ -42,12 +42,15 @@ def chains(today: date | None = None) -> dict[str, list[list[str]]]:
         "refresh": [
             ["refresh"],
             ["reference", "--from", (today - timedelta(days=45)).isoformat()],
+            ["rate", "--publish"],
         ],
         "fundamentals": [
             ["fundamentals", "--rate", "1.5"],
             ["features"],
+            ["metrics"],
             ["rank", "--sleeve", "L"],
             ["rank", "--sleeve", "S"],
+            ["rate", "--recompute", "--publish"],
         ],
         "digest": [["digest", "--send"]],
     }

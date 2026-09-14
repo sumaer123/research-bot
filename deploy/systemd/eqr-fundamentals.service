@@ -8,5 +8,7 @@ WorkingDirectory=/opt/eqr
 EnvironmentFile=/opt/eqr/.env
 ExecStart=/opt/eqr/.venv/bin/eqr fundamentals --rate 1.5
 ExecStartPost=/opt/eqr/.venv/bin/eqr features
+ExecStartPost=/opt/eqr/.venv/bin/eqr metrics
 ExecStartPost=/opt/eqr/.venv/bin/eqr rank --sleeve L
 ExecStartPost=/opt/eqr/.venv/bin/eqr rank --sleeve S
+ExecStartPost=/opt/eqr/.venv/bin/eqr rate --recompute --publish

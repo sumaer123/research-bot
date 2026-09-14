@@ -39,3 +39,4 @@ No `_archive/` yet — nothing superseded since this is the initial onboarding.
 - **2026-09-14** — docs git-sync — main @ `22d952e` — files: `README.md`, `docs/DOCS_INDEX.md`, `docs/OPERATIONS.md`, `docs/REBUILD_SPEC.md` — by: documentation-engineer
 - **2026-09-14** — docs git-sync — main @ `8be2e88` — files: `docs/DOCS_INDEX.md`, `docs/OPERATIONS.md` — by: documentation-engineer
 - **2026-09-14** — Authored docs/GRAPHIFY_GUIDE.md — developer and agent reference for the Graphify code-graph integration (§4.3 of the integration plan). Added Part A rows for GRAPHIFY_GUIDE.md and the integration plan. No code changes. — files: docs/GRAPHIFY_GUIDE.md — by: documentation-engineer
+- **2026-09-14** — docs git-sync — main @ `283e10b` — files: `docs/DOCS_INDEX.md`, `docs/GRAPHIFY_GUIDE.md` — by: documentation-engineer

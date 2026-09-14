@@ -72,9 +72,10 @@ def test_job_runner_chains_mirror_the_systemd_units():
     jobs = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(jobs)
     chains = jobs.chains(date(2026, 9, 14))
-    assert chains["refresh"] == [["refresh"], ["reference", "--from", "2026-07-31"]]
+    assert chains["refresh"] == [["refresh"], ["reference", "--from", "2026-07-31"], ["rate", "--publish"]]
     assert chains["fundamentals"] == [
-        ["fundamentals", "--rate", "1.5"], ["features"], ["rank", "--sleeve", "L"], ["rank", "--sleeve", "S"],
+        ["fundamentals", "--rate", "1.5"], ["features"], ["metrics"], ["rank", "--sleeve", "L"], ["rank", "--sleeve", "S"],
+        ["rate", "--recompute", "--publish"],
     ]
     assert chains["digest"] == [["digest", "--send"]]
     assert jobs.main(["jobs.py"]) == 2          # no job → usage, nothing run

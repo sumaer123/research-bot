@@ -1,6 +1,8 @@
 """FastAPI app: light-theme dashboard + read-only advisor API."""
 from __future__ import annotations
 
+import csv
+import io
 import json
 from datetime import date, datetime
 from pathlib import Path
@@ -8,12 +10,13 @@ from typing import Optional
 
 import duckdb
 from fastapi import FastAPI, HTTPException, Query, Request, Depends
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 
 from ...config import settings
 from .. import queries as q
 from ..md import render as md_render
+from ..report import decision_onepager_md
 
 app = FastAPI(title="eqr", docs_url=None, redoc_url=None)
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
@@ -61,6 +64,68 @@ def symbol(request: Request, symbol: str, con=Depends(db)):
     return templates.TemplateResponse(request, "symbol.html", {
         "p": p, "svg": q.price_svg(p["px"], p["factors"]),
         "dossier_html": md_render(p["dossier"]["markdown"]) if p["dossier"] else ""})
+
+
+@app.get("/decision/{symbol}.md")
+def decision_markdown(symbol: str, con=Depends(db)):
+    rating = q.latest_rating(con, symbol.upper())
+    if not rating:
+        raise HTTPException(404, f"no rating for {symbol}")
+    # Get instrument name
+    inst = con.execute("SELECT name FROM instruments WHERE symbol = ?", [symbol.upper()]).fetchone()
+    name = inst[0] if inst else "?"
+    # Get features for timing data
+    feat = con.execute("SELECT mom_12_1, dist_52w_high, dma200_ratio FROM features WHERE symbol = ? ORDER BY as_of DESC LIMIT 1",
+                       [symbol.upper()]).fetchone()
+    feat_dict = {"mom_12_1": feat[0], "dist_52w_high": feat[1], "dma200_ratio": feat[2]} if feat else {}
+
+    rating["name"] = name
+    md_text = decision_onepager_md(rating, feat=feat_dict)
+    return HTMLResponse(content=md_text, media_type="text/markdown")
+
+
+@app.get("/decision/{symbol}", response_class=HTMLResponse)
+def decision(request: Request, symbol: str, con=Depends(db)):
+    rating = q.latest_rating(con, symbol.upper())
+    if not rating:
+        raise HTTPException(404, f"no rating for {symbol}")
+    # Get instrument name
+    inst = con.execute("SELECT name FROM instruments WHERE symbol = ?", [symbol.upper()]).fetchone()
+    name = inst[0] if inst else "?"
+    # Get features for timing data
+    feat = con.execute("SELECT mom_12_1, dist_52w_high, dma200_ratio FROM features WHERE symbol = ? ORDER BY as_of DESC LIMIT 1",
+                       [symbol.upper()]).fetchone()
+    feat_dict = {"mom_12_1": feat[0], "dist_52w_high": feat[1], "dma200_ratio": feat[2]} if feat else {}
+
+    rating["name"] = name
+    md_text = decision_onepager_md(rating, feat=feat_dict)
+    html_body = md_render(md_text)
+    return templates.TemplateResponse(request, "report.html", {"run_id": symbol.upper(), "body": html_body})
+
+
+@app.get("/ratings", response_class=HTMLResponse)
+def ratings(request: Request, as_of: Optional[str] = None, verdict: Optional[str] = None,
+            profile: Optional[str] = None, con=Depends(db)):
+    as_of_date = datetime.strptime(as_of, "%Y-%m-%d").date() if as_of else None
+    tbl = q.ratings_table(con, as_of_date, verdict=verdict, profile=profile)
+    # Get list of available as_of dates
+    dates = [r[0] for r in con.execute("SELECT DISTINCT as_of FROM ratings ORDER BY as_of DESC LIMIT 20").fetchall()]
+    return templates.TemplateResponse(request, "ratings.html", {
+        "tbl": tbl, "as_of_list": dates})
+
+
+@app.get("/ratings.csv")
+def ratings_csv(as_of: Optional[str] = None, verdict: Optional[str] = None,
+                profile: Optional[str] = None, con=Depends(db)):
+    as_of_date = datetime.strptime(as_of, "%Y-%m-%d").date() if as_of else None
+    tbl = q.ratings_table(con, as_of_date, verdict=verdict, profile=profile)
+    if tbl.empty:
+        raise HTTPException(404, "no ratings found")
+    output = io.StringIO()
+    tbl.to_csv(output, index=False)
+    output.seek(0)
+    return StreamingResponse(iter([output.getvalue()]), media_type="text/csv",
+                             headers={"Content-Disposition": "attachment; filename=ratings.csv"})
 
 
 @app.get("/backtests", response_class=HTMLResponse)

@@ -9,3 +9,6 @@ data/
 *.duckdb.wal
 .DS_Store
 .deploy/
+
+# Graphify local code-graph output: machine-local, rebuilt on demand.
+graphify-out/

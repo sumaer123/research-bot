@@ -40,4 +40,33 @@ def build_digest(con, today: date | None = None) -> str:
                          ORDER BY 1""", [today - timedelta(days=1), today]).fetchall()
     if due:
         lines.append("\nResults filed in the last day for held names: " + ", ".join(r[0] for r in due))
+
+    # Ratings section: changes in ratings for held names in Sleeve L
+    lines.append("\n<b>Ratings</b>")
+    ratings_tbl = q.ratings_table(con)
+    if len(ratings_tbl) > 0:
+        # Count CONVICTION_BUY in universe
+        conviction_count = len(ratings_tbl[ratings_tbl['rating'] == 'CONVICTION_BUY'])
+        lines.append(f"  CONVICTION_BUY names: {conviction_count}")
+
+        # Check for recent rating changes in held names (Sleeve L)
+        latest_ranks = q.latest_ranks(con, "L", held_only=True)
+        if len(latest_ranks) > 0:
+            held_symbols = set(latest_ranks['symbol'].values)
+            recent_changes = []
+            for sym in held_symbols:
+                hist = q.rating_history(con, sym, limit=2)
+                if len(hist) >= 2:
+                    prev_rating = hist.iloc[1]
+                    curr_rating = hist.iloc[0]
+                    if prev_rating['rating'] != curr_rating['rating']:
+                        prev_score = prev_rating['score']
+                        curr_score = curr_rating['score']
+                        recent_changes.append(f"{sym}: {prev_rating['rating']} → {curr_rating['rating']} "
+                                              f"({prev_score:.0f} → {curr_score:.0f})")
+            if recent_changes:
+                lines.append("  Verdict changes in held names: " + "; ".join(recent_changes[:3]))
+    else:
+        lines.append("  No ratings available")
+
     return "\n".join(lines)

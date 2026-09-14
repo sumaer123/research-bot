@@ -1,0 +1,75 @@
+{% extends "base.html" %}{% block title %}{{ symbol }} Decision{% endblock %}
+{% block body %}
+
+# {{ symbol }} · {{ name }} · {{ profile }} profile
+
+## Decision
+
+### {{ verdict }}
+
+**Score:** {{ score|int }}/100
+
+**MoS:** {% if mos_base is not none %}{{ '%+.0f%%' % (mos_base * 100) }}{% else %}?{% endif %}
+
+**Confidence:** {{ dci_band }} ({{ '%.2f' % confidence }})
+
+{% if fv_base %}
+**Fair Value:** ₹{{ '{:,.0f}'.format(fv_base) }}
+- Bear: ₹{{ '{:,.0f}'.format(fv_bear) }}
+- Base: ₹{{ '{:,.0f}'.format(fv_base) }}
+- Bull: ₹{{ '{:,.0f}'.format(fv_bull) }}
+- Current Price: ₹{{ '{:,.0f}'.format(price) }}
+{% endif %}
+
+**Rule:** {{ rule_id or "?" }}
+
+**As of:** {{ as_of }} · Engine: {{ engine_version }}/{{ variant }}
+
+**Claim State:** {{ claim_state }}
+
+## Pillars
+
+| Pillar | Weight | Score | Coverage |
+|--------|--------|-------|----------|
+{% for name, pillar in pillars.items() %}| {{ name }} | {{ '%.0f%%' % (pillar.weight_known * 100) }} | {{ '%.0f' % pillar.score }} | {% for i in range(5) %}●{% if pillar.weight_known / 5 <= i %}○{% endif %}{% endfor %} |
+{% endfor %}
+
+## Flags
+
+**HARD:** {{ n_hard }} · **SOFT:** {{ n_soft }} · **WATCH:** {{ n_watch }}
+
+{% if gates|length %}
+| Code | Tier | Value |
+|------|------|-------|
+{% for gate in gates %}| {{ gate.code }} | {{ gate.tier }} | {{ gate.value }} |
+{% endfor %}
+{% else %}
+No red flags fired.
+{% endif %}
+
+## Timing
+
+{% if feat %}
+- 12-1m momentum: {% if feat.mom_12_1 is not none %}{{ '%.0f%%' % (feat.mom_12_1 * 100) }}{% else %}?{% endif %}
+- 52w high: {% if feat.dist_52w_high is not none %}{{ '%.0f%%' % (feat.dist_52w_high * 100) }} below{% else %}?{% endif %}
+- vs 200 DMA: {% if feat.dma200_ratio is not none %}{{ '%.2f' % feat.dma200_ratio }}{% else %}?{% endif %}
+{% endif %}
+
+## Data Quality
+
+- Components Known: {{ n_components_known }}/{{ n_components_total }}
+- Data Errors: {{ data_errors|length }}
+- Manifest SHA: {{ manifest_sha }}
+- Created: {{ created_at }}
+
+{% if dossier %}
+## Analyst View (Dossier)
+
+**Rating:** {{ dossier.rating }} ({{ '%.0f%%' % (dossier.confidence * 100) }} confidence)
+
+{% if dossier.catalysts %}
+**Catalysts:** {{ dossier.catalysts }}
+{% endif %}
+{% endif %}
+
+{% endblock %}

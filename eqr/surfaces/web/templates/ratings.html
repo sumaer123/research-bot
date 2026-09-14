@@ -1,0 +1,25 @@
+{% extends "base.html" %}{% block title %}Ratings{% endblock %}
+{% block body %}
+
+# Ratings Table
+
+## Filters
+
+**As of:** {{ as_of_list[0] if as_of_list else "?" }}
+
+{% if as_of_list|length > 1 %}
+[{% for date in as_of_list %}[{{ date }}]({{ request.url.path }}?as_of={{ date }}){% if not loop.last %} · {% endif %}{% endfor %}]
+{% endif %}
+
+## Results
+
+| Symbol | Rating | Score | MoS | Confidence | DCi Band | Profile | Rule | HARD | SOFT | WATCH |
+|--------|--------|-------|-----|------------|----------|---------|------|------|------|-------|
+{% for row in tbl.itertuples() %}| [{{ row.symbol }}](/symbol/{{ row.symbol }}) | {{ row.rating }} | {{ '%.0f' % row.score }} | {% if row.mos_base is not none %}{{ '%+.0f%%' % (row.mos_base * 100) }}{% else %}?{% endif %} | {{ '%.2f' % row.confidence }} | {{ row.dci_band }} | {{ row.profile }} | {{ row.rule_id }} | {{ row.n_hard }} | {{ row.n_soft }} | {{ row.n_watch }} |
+{% endfor %}
+
+## Export
+
+[CSV Export](/ratings.csv)
+
+{% endblock %}

@@ -1,6 +1,7 @@
 """Read-only queries shared by the web UI, the advisor API and the digest."""
 from __future__ import annotations
 
+import json
 from datetime import date, datetime, timedelta
 from typing import Optional
 
@@ -111,6 +112,109 @@ def backtests(con) -> pd.DataFrame:
     return con.execute("SELECT run_id, sleeve, start_date, end_date, verdict, created_at, report_path FROM backtests ORDER BY created_at DESC LIMIT 50").df()
 
 
+def latest_rating(con, symbol: str, engine_version: Optional[str] = None, variant: str = 'base') -> Optional[dict]:
+    """Latest rating row for a symbol, with JSON columns parsed into dicts. Returns None if not found."""
+    if engine_version is None:
+        # Get the latest engine version available for this symbol
+        row = con.execute("""SELECT symbol, as_of, engine_version, variant, status, rating, score, confidence,
+                            confidence_band, coverage, pillars_json, gates_json, manifest_json, manifest_sha,
+                            data_errors_json, decision_json, rule_id, profile, mos_base, fv_base, fv_bull, fv_bear,
+                            dci_band, valuation_json, price, created_at
+                            FROM ratings WHERE symbol = ? AND variant = ?
+                            ORDER BY as_of DESC, engine_version DESC LIMIT 1""", [symbol, variant]).fetchone()
+    else:
+        row = con.execute("""SELECT symbol, as_of, engine_version, variant, status, rating, score, confidence,
+                            confidence_band, coverage, pillars_json, gates_json, manifest_json, manifest_sha,
+                            data_errors_json, decision_json, rule_id, profile, mos_base, fv_base, fv_bull, fv_bear,
+                            dci_band, valuation_json, price, created_at
+                            FROM ratings WHERE symbol = ? AND engine_version = ? AND variant = ?
+                            ORDER BY as_of DESC LIMIT 1""", [symbol, engine_version, variant]).fetchone()
+    if not row:
+        return None
+    return {
+        "symbol": row[0], "as_of": row[1], "engine_version": row[2], "variant": row[3],
+        "status": row[4], "rating": row[5], "score": row[6], "confidence": row[7],
+        "confidence_band": row[8], "coverage": row[9],
+        "pillars": json.loads(row[10]) if row[10] else {},
+        "gates": json.loads(row[11]) if row[11] else [],
+        "manifest": json.loads(row[12]) if row[12] else {},
+        "manifest_sha": row[13],
+        "data_errors": json.loads(row[14]) if row[14] else [],
+        "decision": json.loads(row[15]) if row[15] else None,
+        "rule_id": row[16], "profile": row[17],
+        "mos_base": row[18], "fv_base": row[19], "fv_bull": row[20], "fv_bear": row[21],
+        "dci_band": row[22],
+        "valuation": json.loads(row[23]) if row[23] else {},
+        "price": row[24], "created_at": row[25]
+    }
+
+
+def ratings_table(con, as_of: Optional[date] = None, engine_version: Optional[str] = None,
+                  variant: str = 'base', verdict: Optional[str] = None,
+                  profile: Optional[str] = None, limit: int = 2000) -> pd.DataFrame:
+    """All ratings for a given as_of date, optionally filtered by verdict/profile.
+    Returns sortable columns: symbol, rating, score, mos_base, confidence, dci_band, profile, rule_id, n_hard, n_soft, n_watch, as_of."""
+    if as_of is None:
+        as_of = con.execute("SELECT max(as_of) FROM ratings WHERE variant = ?", [variant]).fetchone()[0]
+    if as_of is None:
+        return pd.DataFrame()
+
+    sql = """SELECT symbol, rating, score, mos_base, confidence, dci_band, profile, rule_id, as_of,
+                    gates_json
+             FROM ratings
+             WHERE variant = ? AND as_of = ?"""
+    params = [variant, as_of]
+
+    if engine_version is not None:
+        sql += " AND engine_version = ?"
+        params.append(engine_version)
+    if verdict is not None:
+        sql += " AND rating = ?"
+        params.append(verdict)
+    if profile is not None:
+        sql += " AND profile = ?"
+        params.append(profile)
+
+    sql += f" ORDER BY symbol LIMIT {limit}"
+    df = con.execute(sql, params).df()
+
+    # Parse JSON gate counts client-side
+    def count_gates_by_tier(gates_json_str, tier):
+        try:
+            gates = json.loads(gates_json_str) if gates_json_str else []
+            return sum(1 for g in gates if g.get("tier") == tier)
+        except (json.JSONDecodeError, TypeError):
+            return 0
+
+    df["n_hard"] = df["gates_json"].apply(lambda x: count_gates_by_tier(x, "HARD"))
+    df["n_soft"] = df["gates_json"].apply(lambda x: count_gates_by_tier(x, "SOFT"))
+    df["n_watch"] = df["gates_json"].apply(lambda x: count_gates_by_tier(x, "WATCH"))
+    df = df.drop("gates_json", axis=1)
+
+    return df
+
+
+def rating_history(con, symbol: str, limit: int = 24) -> pd.DataFrame:
+    """Latest N ratings for a symbol, ordered by as_of descending."""
+    return con.execute("""SELECT as_of, rating, score, mos_base, confidence, dci_band,
+                         engine_version, variant, rule_id
+                         FROM ratings WHERE symbol = ?
+                         ORDER BY as_of DESC, engine_version DESC LIMIT ?""", [symbol, limit]).df()
+
+
+def engine_claim_state(con, engine_version: str) -> str:
+    """Return the claim state for an engine version: DIAGNOSTIC|PROVISIONAL|BACKTEST_PASS|VALIDATED.
+    Reads from rating_calibrations; no calibration row returns DIAGNOSTIC."""
+    from ..validate.claims import ClaimState
+    row = con.execute("SELECT verdict FROM rating_calibrations WHERE engine_version = ? ORDER BY created_at DESC LIMIT 1",
+                      [engine_version]).fetchone()
+    if not row or not row[0]:
+        return ClaimState.DIAGNOSTIC.value
+    if row[0] == "VALIDATED":
+        return ClaimState.PROVISIONAL.value  # PROVISIONAL until integrity items are closed
+    return ClaimState.DIAGNOSTIC.value
+
+
 def advisor_evidence(con, symbol: str) -> dict:
     inst = con.execute("SELECT name, industry FROM instruments WHERE symbol = ?", [symbol]).fetchone()
     if not inst:
@@ -150,6 +254,27 @@ def advisor_evidence(con, symbol: str) -> dict:
             out["flags"].append("NOT_RANKABLE")
     d = con.execute("SELECT as_of, rating, confidence FROM dossiers_current WHERE symbol = ? ORDER BY as_of DESC LIMIT 1", [symbol]).fetchone()
     out["dossier"] = {"as_of": str(d[0]), "rating": d[1], "confidence": d[2]} if d else None
+
+    # Add decision block from latest rating
+    rating = latest_rating(con, symbol)
+    if rating and rating.get("decision"):
+        dec = rating["decision"]
+        claim_state_val = engine_claim_state(con, rating["engine_version"])
+        out["decision"] = {
+            "as_of": str(rating["as_of"]),
+            "verdict": dec.get("verdict"),
+            "rule_id": dec.get("rule_id"),
+            "score": rating.get("score"),
+            "mos": rating.get("mos_base"),
+            "dci": rating.get("confidence"),
+            "band": rating.get("dci_band"),
+            "flags": [g.get("code") for g in rating.get("gates", [])],
+            "claim_state": claim_state_val,
+            "validated": claim_state_val in ("BACKTEST_PASS", "PROSPECTIVE_VALIDATED")
+        }
+    else:
+        out["decision"] = None
+
     if out["freshness_days"] is None or out["as_of"] is None:
         out["status"] = "UNKNOWN"
     elif out["freshness_days"] > 40:

@@ -24,10 +24,17 @@ def fetch_evidence(base_url: str, token: str, symbol: str, timeout: float = 3.0)
 
 def evidence_line(ev: Optional[dict], max_points: float = 3.0) -> dict:
     """Turn evidence into ONE conviction-style check. Points only from a VALIDATED
-    sleeve's percentile; flags reduce to zero but never block (the caller's gates do that)."""
+    sleeve's percentile; flags reduce to zero but never block (the caller's gates do that).
+    When decision block exists with validated SELL, sets points to 0 and status FAIL."""
     if not ev:
         return {"name": "eqr_rank", "status": "UNKNOWN", "points": 0.0, "max_points": max_points,
                 "detail": "research bot unavailable"}
+
+    # Handle decision block: validated SELL zeroes the check
+    if ev.get("decision") and ev["decision"].get("validated") and ev["decision"].get("verdict") == "SELL":
+        return {"name": "eqr_rank", "status": "FAIL", "points": 0.0, "max_points": max_points,
+                "detail": f"validated engine SELL"}
+
     best = None
     for sl in ("sleeve_L", "sleeve_S"):
         s = ev.get(sl) or {}

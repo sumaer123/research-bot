@@ -8,3 +8,4 @@ WorkingDirectory=/opt/eqr
 EnvironmentFile=/opt/eqr/.env
 ExecStart=/opt/eqr/.venv/bin/eqr refresh
 ExecStartPost=/bin/bash -c "/opt/eqr/.venv/bin/eqr reference --from $(date -d '-45 days' +%%Y-%%m-%%d)"
+ExecStartPost=/opt/eqr/.venv/bin/eqr rate --publish

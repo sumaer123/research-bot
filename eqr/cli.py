@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import date, datetime
+from pathlib import Path
 from typing import Optional
 
 import typer
@@ -364,6 +365,101 @@ def prospective(action: str = typer.Argument("report", help="publish | score | r
 
 
 @app.command()
+def metrics(as_of: Optional[str] = typer.Option(None, "--as-of"),
+            monthly_from: Optional[str] = typer.Option(None, "--monthly-from"),
+            symbols: Optional[str] = typer.Option(None, "--symbols", help="comma-separated subset")):
+    """Build the institutional fundamentals slice (fund_metrics) for a date or every month-end
+    since --monthly-from (point-in-time, screener + features; XBRL when present)."""
+    from .store import connect
+    from .fundamentals.build import build_metrics, METRICS_VERSION
+    from .spine.universe import month_end_sessions
+    con = connect()
+    try:
+        end = _d(as_of) or con.execute("SELECT max(as_of) FROM features").fetchone()[0]
+        dates = month_end_sessions(con, _d(monthly_from), end) if monthly_from else [end]
+        syms = [x.strip().upper() for x in symbols.split(",")] if symbols else None
+        for d in dates:
+            fd = con.execute("SELECT max(as_of) FROM features WHERE as_of <= ?", [d]).fetchone()[0]
+            if fd is None:
+                typer.echo(f"{d}: no features"); continue
+            wide = build_metrics(con, fd, syms)
+            typer.echo(f"{fd}: {len(wide)} names x {wide.shape[1] if len(wide) else 0} metrics ({METRICS_VERSION})")
+    finally:
+        con.close()
+
+
+@app.command()
+def rate(as_of: Optional[str] = typer.Option(None, "--as-of"),
+         symbol: Optional[str] = typer.Option(None, "--symbol", help="rate one name (still scored cross-sectionally)"),
+         variant: str = typer.Option("base", "--variant"),
+         engine: Optional[str] = typer.Option(None, "--engine", help="engine version (default: current)"),
+         publish: bool = typer.Option(False, "--publish", help="append RATED base rows to the rating ledger"),
+         recompute: bool = typer.Option(False, "--recompute", help="rebuild fund_metrics first"),
+         calibrate: bool = typer.Option(False, "--calibrate", help="run the pre-registered calibration instead"),
+         start: str = typer.Option("2017-06-30", "--start"), holdout_start: str = typer.Option("2024-09-30", "--holdout-start"),
+         force: Optional[str] = typer.Option(None, "--force", help="proceed despite a quality BLOCKER; records the reason")):
+    """Deterministic BUY/HOLD/SELL rating for every rankable name (nightly), or --calibrate."""
+    from .store import connect
+    from .store.quality_gate import assert_quality, QualityBlocked
+    from .rating import engine as eng
+    from .rating import ledger
+    con = connect()
+    try:
+        ev = engine or eng.ENGINE_VERSION
+        if calibrate:
+            from .rating.calibrate import run_calibration, CalibrationConfig
+            cfg = CalibrationConfig(engine_version=ev, start=_d(start), holdout_start=_d(holdout_start),
+                                    end=con.execute("SELECT max(as_of) FROM features").fetchone()[0])
+            out = run_calibration(con, cfg)
+            typer.echo(json.dumps({k: v for k, v in out.items() if k != "detail"}, default=str, indent=1))
+            return
+        d = _d(as_of) or con.execute("SELECT max(as_of) FROM features").fetchone()[0]
+        try:
+            assert_quality(con, d, "rate", force_reason=force)
+        except QualityBlocked as e:
+            raise typer.BadParameter(str(e))
+        res = eng.rate_universe(con, d, variant=variant, engine=ev, recompute_metrics=recompute)
+        typer.echo(json.dumps(eng.summary(res), indent=1))
+        if symbol:
+            r = next((x for x in res if x.symbol == symbol.upper()), None)
+            if r is None:
+                typer.echo(f"{symbol}: not in the universe on {d}")
+            else:
+                typer.echo(f"{r.symbol}: {r.decision.verdict} ({r.decision.rule_id}) score "
+                           f"{r.score if r.score is None else round(r.score, 1)} MoS {r.valuation.mos_base} "
+                           f"DCI {r.confidence.dci:.2f} {r.confidence.band} flags {[f.code for f in r.red_flags]}")
+        if publish and variant == "base":
+            typer.echo(json.dumps(ledger.publish(con, d, ev)))
+            typer.echo(json.dumps(ledger.mature(con, ev)))
+    finally:
+        con.close()
+
+
+@app.command()
+def decision(symbol: str = typer.Argument(...),
+             fmt: str = typer.Option("md", "--fmt", help="md | html | telegram"),
+             out: Optional[str] = typer.Option(None, "--out", help="write to this path instead of stdout")):
+    """Print the stock decision one-pager for the latest stored rating."""
+    from .store import connect
+    from .surfaces import report as rep
+    from .surfaces.queries import latest_rating
+    con = connect(read_only=True)
+    try:
+        r = latest_rating(con, symbol.upper())
+        if r is None:
+            raise typer.BadParameter(f"no rating stored for {symbol}; run `eqr rate` first")
+        feat = con.execute("SELECT * FROM features WHERE symbol = ? AND as_of = ?", [symbol.upper(), r["as_of"]]).df()
+        feat = feat.iloc[0].to_dict() if len(feat) else {}
+        text = {"md": rep.decision_onepager_md, "html": rep.decision_html}.get(fmt, lambda *a: rep.telegram_card(a[0]))(r, feat)
+        if out:
+            Path(out).write_text(text); typer.echo(out)
+        else:
+            typer.echo(text)
+    finally:
+        con.close()
+
+
+@app.command()
 def web(host: Optional[str] = typer.Option(None, "--host"), port: Optional[int] = typer.Option(None, "--port")):
     """Serve the dashboard and advisor API."""
     import uvicorn
@@ -501,6 +597,70 @@ def dossier(symbol: str, as_of: Optional[str] = typer.Option(None, "--as-of"), m
         typer.echo(json.dumps(run_dossier(con, symbol.upper(), _d(as_of), model=model, dry_run=dry_run), indent=1))
     finally:
         con.close()
+
+
+graph_app = typer.Typer(help="Query the Graphify code graph (graphify-out/).", no_args_is_help=True)
+app.add_typer(graph_app, name="graph")
+
+
+@graph_app.command("status")
+def graph_status():
+    """Node/edge/community counts, build commit, and staleness vs HEAD."""
+    from .spine.graph import GraphifyReader
+    r = GraphifyReader()
+    s = r.stats
+    stale = r.is_stale()
+    freshness = "UNKNOWN" if stale is None else ("STALE — run `eqr graph rebuild`" if stale else "FRESH")
+    typer.echo(f"{s['nodes']} nodes · {s['edges']} edges · {s['communities']} communities")
+    typer.echo(f"built_at_commit {str(s['built_at_commit'])[:8]}  →  {freshness}")
+
+
+@graph_app.command("query")
+def graph_query(target: str = typer.Argument(..., help="symbol, node id, or source file"),
+                depth: int = typer.Option(1, "--depth"),
+                as_json: bool = typer.Option(False, "--json")):
+    """Neighbours + community hub for a symbol/file, grouped by relation."""
+    from .spine.graph import GraphifyReader
+    r = GraphifyReader()
+    if as_json:
+        ids = r.resolve(target)
+        typer.echo(json.dumps({nid: [nb.__dict__ for nb in r.neighbors(nid)] for nid in ids}, indent=1))
+    else:
+        typer.echo(r.as_markdown(target, depth=depth))
+
+
+@graph_app.command("hubs")
+def graph_hubs(top: int = typer.Option(10, "--top")):
+    """Community hubs (by node count) and the most-connected god nodes."""
+    from .spine.graph import GraphifyReader
+    r = GraphifyReader()
+    typer.echo("Communities:")
+    for name, n in list(r.communities().items())[:top]:
+        typer.echo(f"  {n:>4}  {name}")
+    typer.echo("God nodes:")
+    for label, deg in r.god_nodes(top):
+        typer.echo(f"  {deg:>4}  {label}")
+
+
+@graph_app.command("explain")
+def graph_explain(symbol: str = typer.Argument(...)):
+    """Rich explanation — shells to `graphify explain`, falls back to `query`."""
+    import shutil
+    import subprocess
+    if shutil.which("graphify"):
+        raise typer.Exit(subprocess.run(["graphify", "explain", symbol]).returncode)
+    from .spine.graph import GraphifyReader
+    typer.echo(GraphifyReader().as_markdown(symbol))
+
+
+@graph_app.command("rebuild")
+def graph_rebuild(no_cluster: bool = typer.Option(False, "--no-cluster")):
+    """Re-extract and re-cluster the graph (delegates to the graphify binary)."""
+    from .spine.graph import rebuild
+    try:
+        raise typer.Exit(rebuild(no_cluster=no_cluster))
+    except RuntimeError as e:
+        raise typer.BadParameter(str(e))
 
 
 if __name__ == "__main__":
