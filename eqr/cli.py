@@ -167,11 +167,13 @@ def fundamentals(symbols: Optional[str] = typer.Option(None, "--symbols", help="
 
 @app.command()
 def reference(start: str = typer.Option("2016-01-01", "--from"), end: Optional[str] = typer.Option(None, "--to"),
-              no_surveillance: bool = typer.Option(False, "--no-surveillance")):
+              no_surveillance: bool = typer.Option(False, "--no-surveillance"),
+              xbrl_urls_from: Optional[str] = typer.Option(None, "--xbrl-urls-from",
+                                                            help="YYYY-MM-DD: fill NULL xbrl_url from this date to today")):
     """NSE cookie-gated reference data: corporate actions, results filing dates, surveillance lists."""
     from .store import connect, new_run, end_run
     from .spine.http import Http, NseApi
-    from .spine.nse_api import load_reference
+    from .spine.nse_api import load_reference, fill_xbrl_urls
     from .spine.refresh import latest_expected_session
     con = connect()
     api = NseApi(Http(rate_limit_s=0.8))
@@ -179,6 +181,8 @@ def reference(start: str = typer.Option("2016-01-01", "--from"), end: Optional[s
     try:
         out = load_reference(con, api, run_id, _d(start), _d(end) or date.today(),
                              as_of=None if no_surveillance else latest_expected_session())
+        if xbrl_urls_from:
+            out["fill_xbrl"] = fill_xbrl_urls(con, api, run_id, _d(xbrl_urls_from), date.today())
         from .spine.screener import sync_visibility
         out["visibility_restamped"] = sync_visibility(con)
         end_run(con, run_id, "OK", json.dumps(out))

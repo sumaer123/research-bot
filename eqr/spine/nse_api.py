@@ -72,6 +72,20 @@ def _num(v):
         return None
 
 
+def _xbrl_or_none(v) -> Optional[str]:
+    """Normalise NSE XBRL URL: return None for missing/placeholder values.
+
+    NSE returns "-" or a URL ending in "/-" (no filename) for pre-2018 rows
+    that have no real XBRL filing. Any falsy value is also normalised to None.
+    """
+    if not v:
+        return None
+    s = str(v)
+    if s == "-" or s.endswith("/-"):
+        return None
+    return s
+
+
 # ------------------------------------------------------ results calendar ----
 
 def fetch_financial_results(api: NseApi, start: date, end: date, log=None) -> pd.DataFrame:
@@ -98,7 +112,10 @@ def fetch_financial_results(api: NseApi, start: date, end: date, log=None) -> pd
                     continue
                 rows.append({"symbol": x["symbol"].strip(), "period_end": pe,
                              "consolidated": (x.get("consolidated") or "").strip() or "Unknown",
-                             "filing_dt": fd, "audited": x.get("audited"), "period": period, "source": "nse"})
+                             "filing_dt": fd, "audited": x.get("audited"), "period": period, "source": "nse",
+                             "xbrl_url": _xbrl_or_none(x.get("xbrl")),
+                             "seq_id": None,
+                             "type_sub": None})
     df = pd.DataFrame(rows)
     if not df.empty:
         df = df.sort_values("filing_dt").drop_duplicates(subset=["symbol", "period_end", "consolidated"], keep="first")
@@ -251,15 +268,86 @@ def load_reference(con: duckdb.DuckDBPyConnection, api: NseApi, run_id: str, sta
         # first-seen filing date wins: only fill keys the legacy feed does not have
         if not ifr.empty:
             con.register("_ifr", ifr)
-            con.execute("""INSERT INTO results_calendar SELECT n.* FROM _ifr n WHERE NOT EXISTS (
-                           SELECT 1 FROM results_calendar r WHERE r.symbol = n.symbol AND r.period_end = n.period_end
-                           AND r.consolidated = n.consolidated)""")
+            con.execute("""
+                INSERT INTO results_calendar
+                    (symbol, period_end, consolidated, filing_dt, audited, period, source,
+                     xbrl_url, seq_id, type_sub)
+                SELECT n.symbol, n.period_end, n.consolidated, n.filing_dt, n.audited,
+                       n.period, n.source, n.xbrl_url, n.seq_id, n.type_sub
+                FROM _ifr n
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM results_calendar r
+                    WHERE r.symbol = n.symbol AND r.period_end = n.period_end
+                      AND r.consolidated = n.consolidated)""")
             con.unregister("_ifr")
             out["results_calendar_ifr"] = len(ifr)
     if as_of:
         sv = fetch_surveillance(api, as_of, log)
         out["surveillance"] = upsert(con, "surveillance", sv)
     return out
+
+
+def fill_xbrl_urls(con: duckdb.DuckDBPyConnection, api: NseApi, run_id: str,
+                   start: date, end: date) -> dict:
+    """Re-fetch both results feeds and UPDATE results_calendar SET xbrl_url/seq_id/type_sub
+    only where those columns are currently NULL. filing_dt is never touched (first-seen wins).
+    Returns a dict of counts."""
+    def log(res: FetchResult):
+        insert_rows(con, "fetch_log", [res.log_row(run_id)])
+
+    fr = fetch_financial_results(api, start, end, log)
+    counts: dict = {"legacy_fetched": len(fr)}
+
+    ifr = pd.DataFrame()
+    if end >= date(2025, 1, 1):
+        ifr = fetch_integrated_results(api, max(start, date(2025, 1, 1)), end, log)
+        counts["ifr_fetched"] = len(ifr)
+
+    # IFR rows appended after legacy — drop_duplicates keep="last" prefers IFR (has seq_id/type_sub)
+    combined = pd.concat([fr, ifr], ignore_index=True) if not ifr.empty else fr.copy()
+    if combined.empty:
+        counts["filled"] = 0
+        return counts
+
+    # Retain only rows that carry at least one useful XBRL field
+    has_xbrl = combined[
+        combined["xbrl_url"].notna() | combined["seq_id"].notna() | combined["type_sub"].notna()
+    ]
+    useful = (has_xbrl[["symbol", "period_end", "consolidated", "xbrl_url", "seq_id", "type_sub"]]
+              .drop_duplicates(subset=["symbol", "period_end", "consolidated"], keep="last")
+              .copy())
+
+    if useful.empty:
+        counts["filled"] = 0
+        return counts
+
+    con.register("_xbrl_fill", useful)
+
+    # Count rows where xbrl_url IS NULL and we have a non-null replacement ready
+    n_xbrl = con.execute("""
+        SELECT COUNT(*) FROM results_calendar r
+        JOIN _xbrl_fill f
+          ON r.symbol = f.symbol AND r.period_end = f.period_end
+             AND r.consolidated = f.consolidated
+        WHERE r.xbrl_url IS NULL AND f.xbrl_url IS NOT NULL
+    """).fetchone()[0]
+
+    # UPDATE: COALESCE preserves any existing non-null value; filing_dt is never in the SET list.
+    # DuckDB requires fully qualified column names when both tables are in scope (FROM clause).
+    con.execute("""
+        UPDATE results_calendar
+        SET xbrl_url = COALESCE(results_calendar.xbrl_url, f.xbrl_url),
+            seq_id   = COALESCE(results_calendar.seq_id,   f.seq_id),
+            type_sub = COALESCE(results_calendar.type_sub, f.type_sub)
+        FROM _xbrl_fill AS f
+        WHERE results_calendar.symbol       = f.symbol
+          AND results_calendar.period_end   = f.period_end
+          AND results_calendar.consolidated = f.consolidated
+    """)
+
+    con.unregister("_xbrl_fill")
+    counts["filled"] = n_xbrl
+    return counts
 
 
 def load_symbol_filings(con: duckdb.DuckDBPyConnection, api: NseApi, run_id: str, symbol: str) -> dict:
@@ -300,9 +388,13 @@ def fetch_integrated_results(api: NseApi, start: date, end: date, log=None, page
                 fd = _dt(x.get("broadcast_Date")) or _dt(x.get("creation_Date"))
                 if not pe or not fd or not x.get("symbol"):
                     continue
+                xbrl_raw = x.get("xbrl") or x.get("ixbrl")
                 rows.append({"symbol": x["symbol"].strip(), "period_end": pe,
                              "consolidated": (x.get("consolidated") or "").strip() or "Unknown",
-                             "filing_dt": fd, "audited": x.get("audited"), "period": "Quarterly", "source": "nse_ifr"})
+                             "filing_dt": fd, "audited": x.get("audited"), "period": "Quarterly", "source": "nse_ifr",
+                             "xbrl_url": _xbrl_or_none(xbrl_raw),
+                             "seq_id": x.get("seq_Id"),
+                             "type_sub": x.get("type_Sub")})
             if len(data) < page_size:
                 break
             page += 1
