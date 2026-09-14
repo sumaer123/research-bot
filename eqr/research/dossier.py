@@ -105,6 +105,8 @@ def run_dossier(con: duckdb.DuckDBPyConnection, symbol: str, as_of: Optional[dat
         return {"status": "REJECTED", "errors": errors}
     md = render_markdown(obj)
     (path / "dossier.md").write_text(md)
-    con.execute("INSERT OR REPLACE INTO dossiers VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                [symbol, obj["as_of"], model, obj["rating"], float(obj["confidence"]), json.dumps(obj), md, datetime.now()])
+    con.execute(
+        "INSERT OR REPLACE INTO dossiers (symbol, as_of, model, rating, confidence, json, markdown, created_at)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        [symbol, obj["as_of"], model, obj["rating"], float(obj["confidence"]), json.dumps(obj), md, datetime.now()])
     return {"status": "STORED", "rating": obj["rating"], "confidence": obj["confidence"], "path": str(path / "dossier.md")}

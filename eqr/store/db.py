@@ -16,6 +16,7 @@ import pandas as pd
 from ..config import settings
 
 SCHEMA_PATH = Path(__file__).with_name("schema.sql")
+MIGRATIONS_PATH = Path(__file__).with_name("migrations.sql")
 
 
 def connect(path: Optional[Path] = None, read_only: bool = False) -> duckdb.DuckDBPyConnection:
@@ -29,6 +30,7 @@ def connect(path: Optional[Path] = None, read_only: bool = False) -> duckdb.Duck
 
 def init_schema(con: duckdb.DuckDBPyConnection) -> None:
     con.execute(SCHEMA_PATH.read_text())
+    con.execute(MIGRATIONS_PATH.read_text())
 
 
 def table_columns(con: duckdb.DuckDBPyConnection, table: str) -> list[str]:
