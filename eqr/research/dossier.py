@@ -68,6 +68,44 @@ def _extract_json(text: str) -> dict:
     return json.loads(m.group(0))
 
 
+_PAGE_CITE = re.compile(r"^doc:([A-Za-z0-9_\-]+)#p(\d+)$")
+
+
+def _all_citations(obj: dict) -> list[str]:
+    out: list[str] = []
+
+    def walk(x):
+        if isinstance(x, dict):
+            for k, v in x.items():
+                if k == "citations" and isinstance(v, list):
+                    out.extend(str(c) for c in v)
+                else:
+                    walk(v)
+        elif isinstance(x, list):
+            for v in x:
+                walk(v)
+    walk(obj)
+    return out
+
+
+def _binding_errors(obj: dict, symbol: str, pack: dict) -> list[str]:
+    """The response must be bound to the request: right symbol, right as_of, and no page
+    citation beyond a cited document's length."""
+    errors = []
+    if obj.get("symbol") != symbol:
+        errors.append(f"symbol mismatch: dossier {obj.get('symbol')!r} != request {symbol!r}")
+    if str(obj.get("as_of")) != str(pack["as_of"]):
+        errors.append(f"as_of mismatch: dossier {obj.get('as_of')!r} != pack {pack['as_of']!r}")
+    pages_by_doc = {d["doc_id"]: int(d.get("pages") or 0) for d in pack["documents"]}
+    for c in _all_citations(obj):
+        m = _PAGE_CITE.match(c)
+        if m and m.group(1) in pages_by_doc:
+            limit = pages_by_doc[m.group(1)]
+            if limit and int(m.group(2)) > limit:
+                errors.append(f"citation {c} exceeds document pages ({limit})")
+    return errors
+
+
 def render_markdown(d: dict) -> str:
     def claims(items):
         return "\n".join(f"- {c['claim']} _{' '.join(c['citations'])}_" for c in items) or "- none"
@@ -114,6 +152,9 @@ def run_dossier(con: duckdb.DuckDBPyConnection, symbol: str, as_of: Optional[dat
     errors = validate_dossier(obj, allowed)
     if errors:
         return _reject(errors)
+    binding = _binding_errors(obj, symbol, pack)
+    if binding:
+        return _reject(binding)
     md = render_markdown(obj)
     (path / "dossier.md").write_text(md)
     con.execute(

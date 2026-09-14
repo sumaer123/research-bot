@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import json
-from datetime import date, timedelta
+from datetime import date
 from pathlib import Path
 from typing import Optional
 
@@ -44,11 +44,11 @@ def build_pack(con: duckdb.DuckDBPyConnection, symbol: str, as_of: Optional[date
     deals = con.execute("SELECT trade_date, kind, client, side, qty, price FROM deals WHERE symbol = ? AND trade_date <= ? ORDER BY trade_date DESC LIMIT 20",
                         [symbol, as_of]).df()
     ann = con.execute("""SELECT ann_dt, subject, description, doc_id FROM announcements
-                         WHERE symbol = ? AND ann_dt <= ? ORDER BY ann_dt DESC LIMIT 40""", [symbol, as_of + timedelta(days=1)]).df()
+                         WHERE symbol = ? AND ann_dt <= ? ORDER BY ann_dt DESC LIMIT 40""", [symbol, as_of]).df()
     ca = con.execute("SELECT ex_date, subject FROM corporate_actions WHERE symbol = ? AND ex_date <= ? ORDER BY ex_date DESC LIMIT 15",
                      [symbol, as_of]).df()
-    rc = con.execute("SELECT period_end, filing_dt, consolidated, audited FROM results_calendar WHERE symbol = ? ORDER BY period_end DESC LIMIT 8",
-                     [symbol]).df()
+    rc = con.execute("""SELECT period_end, filing_dt, consolidated, audited FROM results_calendar
+                        WHERE symbol = ? AND filing_dt <= ? ORDER BY period_end DESC LIMIT 8""", [symbol, as_of]).df()
     industry = inst.industry.iloc[0] if len(inst) and pd.notna(inst.industry.iloc[0]) else None
     peers = pd.DataFrame()
     if industry and feat_date:
@@ -74,7 +74,8 @@ def build_pack(con: duckdb.DuckDBPyConnection, symbol: str, as_of: Optional[date
                  "text": document_excerpt(r.text_path, excerpt_chars)} for r in chosen]
     pack = {
         "symbol": symbol, "as_of": str(as_of), "feature_date": str(feat_date) if feat_date else None,
-        "company": _records(inst)[:1], "screener_meta": _records(meta)[:1],
+        # current instrument + screener snapshot — NOT point-in-time until instrument_as_of (Wave 2)
+        "company_snapshot_current": {"pit": False, "instrument": _records(inst)[:1], "screener_meta": _records(meta)[:1]},
         "features": _records(feat)[:1], "ranks": _records(ranks),
         "prices_recent": _records(px.head(30)), "price_52w": {
             "high": float(px.close.max()) if len(px) else None, "low": float(px.close.min()) if len(px) else None,
