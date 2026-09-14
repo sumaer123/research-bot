@@ -93,8 +93,8 @@ bash deploy/mac/install-mac.sh
 ```
 
 The script is idempotent: it renders the four plist files (with `__ROOT__` and `__LOGS__` placeholders),
-validates them (`plutil -lint`), and loads them into launchd. Logs go to `~/Library/Logs/eqr/` (readable
-as plain text or via `log stream --predicate 'process=~[com.eqr]' --level debug` if timestamps are needed).
+validates them (`plutil -lint`), and loads them into launchd. Logs go to `~/Library/Logs/eqr/` as plain-text
+files: `<agent>.log` (stdout) and `<agent>.err` (stderr/tracebacks).
 
 ### Schedules (IST)
 
@@ -115,10 +115,17 @@ grant. A plist that execs the `eqr` script will exit 126 on the Mac. **Always ex
 
 ```
 # Tail all eqr agents in real-time:
-log stream --predicate 'process=~[com.eqr]' --level debug
+tail -f ~/Library/Logs/eqr/*.log
 
-# Last run of digest (stdout):
-tail -30 ~/Library/Logs/eqr/digest.out
+# Last run of digest (stdout + stderr):
+tail -30 ~/Library/Logs/eqr/digest.log
+tail -30 ~/Library/Logs/eqr/digest.err
+```
+
+For agent state (running, last-exit time):
+
+```
+launchctl print gui/$(id -u)/com.eqr.web | grep -E 'state|last exit'
 ```
 
 ### Remove
