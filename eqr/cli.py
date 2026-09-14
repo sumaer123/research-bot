@@ -322,6 +322,74 @@ def digest(send: bool = typer.Option(False, "--send", help="actually send to Tel
 
 
 @app.command()
+def xbrl(backfill_from: Optional[str] = typer.Option(None, "--backfill-from",
+                                                       help="sweep all calendar rows with period_end >= DATE"),
+         recent: Optional[int] = typer.Option(None, "--recent",
+                                               help="only filings from the last N days"),
+         symbols: Optional[str] = typer.Option(None, "--symbols", help="comma-separated"),
+         limit: int = typer.Option(0, "--limit"),
+         rate: Optional[float] = typer.Option(None, "--rate",
+                                              help="seconds between requests (default: EQR_RATE_LIMIT_S)")):
+    """Download, archive, and parse XBRL filings from results_calendar."""
+    from .store import connect, new_run, end_run, insert_rows
+    from .spine.http import Http
+    from .spine.xbrl import sweep_xbrl
+    from .config import settings
+
+    s = settings()
+    rate_s = rate if rate is not None else s.rate_limit_s
+    con = connect()
+    http = Http(rate_limit_s=rate_s)
+    run_id = new_run(con, "xbrl_sweep", f"backfill_from={backfill_from} recent={recent} symbols={symbols}")
+    try:
+        where_clauses = ["rc.xbrl_url IS NOT NULL"]
+        params: list = []
+
+        if symbols:
+            sym_list = [x.strip().upper() for x in symbols.split(",") if x.strip()]
+            placeholders = ",".join(["?"] * len(sym_list))
+            where_clauses.append(f"rc.symbol IN ({placeholders})")
+            params.extend(sym_list)
+
+        if backfill_from:
+            where_clauses.append("rc.period_end >= ?")
+            params.append(_d(backfill_from))
+
+        if recent is not None:
+            where_clauses.append(f"rc.period_end >= current_date - INTERVAL {recent} DAY")
+
+        where_sql = " AND ".join(where_clauses)
+
+        # Prioritise annual/half-yearly (audited=Yes is a good proxy for FY/H)
+        # then chronological oldest-first so the most informative filings load first
+        sql = f"""
+            SELECT rc.symbol,
+                   rc.period_end,
+                   CASE rc.consolidated WHEN 'Consolidated' THEN 'C' ELSE 'S' END AS basis,
+                   rc.xbrl_url,
+                   rc.filing_dt
+            FROM results_calendar rc
+            WHERE {where_sql}
+            ORDER BY
+                CASE WHEN UPPER(COALESCE(rc.audited, '')) = 'YES' THEN 0 ELSE 1 END ASC,
+                rc.period_end ASC
+        """
+        rows_raw = con.execute(sql, params).fetchall()
+        if limit:
+            rows_raw = rows_raw[:limit]
+
+        typer.echo(f"rows to sweep: {len(rows_raw)}")
+        out = sweep_xbrl(con, http, rows_raw, run_id)
+        end_run(con, run_id, "OK", json.dumps(out))
+        typer.echo(json.dumps(out))
+    except Exception as e:
+        end_run(con, run_id, "ERROR", str(e)[:400])
+        raise
+    finally:
+        con.close()
+
+
+@app.command()
 def filings(symbols: str = typer.Argument(..., help="comma-separated symbols"), docs: bool = typer.Option(True, "--docs/--no-docs")):
     """NSE announcements + shareholding for symbols; download filing PDFs into the document store."""
     from .store import connect, new_run, end_run, insert_rows

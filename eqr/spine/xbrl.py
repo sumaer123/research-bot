@@ -650,6 +650,123 @@ def load_parsed_xbrl(con: duckdb.DuckDBPyConnection, symbol: str, parsed: Parsed
 
 
 # ---------------------------------------------------------------------------
+# Sweep  (T1.4)
+# ---------------------------------------------------------------------------
+def sweep_xbrl(con: duckdb.DuckDBPyConnection, http, rows, run_id: str,
+               stop_after_blocked: int = 5) -> dict:
+    """Fetch, archive, parse and load XBRL filings from an iterable of rows.
+
+    Each *row* is a tuple ``(symbol, period_end, basis, xbrl_url, filing_dt[, is_bank])``.
+    ``is_bank`` is optional (the parser infers it from content).
+
+    Zero-cost resume: a row whose ``xbrl_url`` is already in ``xbrl_filings``
+    with ``status != 'error'`` *and* a recorded ``sha256`` is skipped with **zero
+    network calls** — re-running an interrupted sweep is safe and cheap.
+
+    Immutable raw archive: bytes are saved to
+    ``<http.raw_dir>/nse/xbrl/<symbol>/<period_end>_<basis>_<sha8>.xml``
+    only if that file does not already exist.  The sha8 in the filename is the
+    first 8 hex chars of the SHA-256 of the bytes.
+
+    ``stop_after_blocked``: once this many consecutive *non-ok* fetches
+    (blocked/403/error/empty) are counted the sweep halts early and sets
+    ``"halted": True`` in the return dict; the counter resets on any success.
+    """
+    n_loaded = n_skipped = n_errors = n_blocked_total = 0
+    halted = False
+    consecutive_bad = 0
+    fetched_at = datetime.now()
+
+    for row in rows:
+        symbol: str = row[0]
+        period_end = row[1]
+        basis: str = row[2] or "S"
+        xbrl_url: str = row[3]
+        filing_dt = row[4]
+
+        # ---- Zero-cost resume --------------------------------------------------
+        existing = con.execute(
+            "SELECT 1 FROM xbrl_filings "
+            "WHERE symbol=? AND xbrl_url=? AND status <> 'error' AND sha256 IS NOT NULL",
+            [symbol, xbrl_url]).fetchone()
+        if existing:
+            n_skipped += 1
+            continue
+
+        # ---- Fetch -------------------------------------------------------------
+        res = http.get_bytes(xbrl_url, source="xbrl", key=f"{symbol}_{period_end}_{basis}")
+
+        if not res.ok or not res.content:
+            consecutive_bad += 1
+            n_blocked_total += 1
+            _upsert_xbrl_filing_error(con, symbol, period_end, basis, xbrl_url,
+                                      filing_dt, res.error or res.status)
+            if consecutive_bad >= stop_after_blocked:
+                halted = True
+                break
+            continue
+
+        # Success → reset the bad-run counter
+        consecutive_bad = 0
+
+        content: bytes = res.content
+        sha256_hex = hashlib.sha256(content).hexdigest()
+        sha8 = sha256_hex[:8]
+        raw_rel = f"nse/xbrl/{symbol}/{period_end}_{basis}_{sha8}.xml"
+
+        # ---- Immutable archive -------------------------------------------------
+        raw_dir = getattr(http, "raw_dir", None)
+        if raw_dir is not None:
+            archive_path = raw_dir / raw_rel
+            if not archive_path.exists():
+                archive_path.parent.mkdir(parents=True, exist_ok=True)
+                archive_path.write_bytes(content)
+
+        # ---- Parse + load ------------------------------------------------------
+        try:
+            parsed = parse_xbrl(content)
+            load_parsed_xbrl(con, symbol, parsed, filing_dt, xbrl_url)
+            # Stamp sha256 + bytes that load_parsed_xbrl left NULL
+            con.execute(
+                "UPDATE xbrl_filings SET sha256=?, bytes=? "
+                "WHERE symbol=? AND xbrl_url=?",
+                [sha256_hex, len(content), symbol, xbrl_url])
+            n_loaded += 1
+        except Exception as exc:
+            _upsert_xbrl_filing_error(con, symbol, period_end, basis, xbrl_url,
+                                      filing_dt, str(exc)[:400], sha256_hex, len(content))
+            n_errors += 1
+
+    return {
+        "run_id": run_id,
+        "loaded": n_loaded,
+        "skipped": n_skipped,
+        "errors": n_errors,
+        "blocked": n_blocked_total,
+        "halted": halted,
+    }
+
+
+def _upsert_xbrl_filing_error(con: duckdb.DuckDBPyConnection,
+                               symbol: str, period_end, basis: str,
+                               xbrl_url: str, filing_dt,
+                               error: str,
+                               sha256: Optional[str] = None,
+                               n_bytes: int = 0) -> None:
+    """Write (or overwrite) an error row in xbrl_filings."""
+    fdt = filing_dt.date() if isinstance(filing_dt, datetime) else filing_dt
+    filing_ts = (filing_dt if isinstance(filing_dt, datetime)
+                 else datetime(fdt.year, fdt.month, fdt.day) if fdt else None)
+    con.execute(
+        "INSERT OR REPLACE INTO xbrl_filings "
+        "(symbol, period_end, basis, xbrl_url, filing_dt, status, error, "
+        " sha256, bytes, fetched_at) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?)",
+        [symbol, period_end, basis, xbrl_url, filing_ts,
+         "error", error, sha256, n_bytes, datetime.now()])
+
+
+# ---------------------------------------------------------------------------
 # PIT reader
 # ---------------------------------------------------------------------------
 def canonical_wide(con: duckdb.DuckDBPyConnection, symbol: str, as_of) -> dict:
