@@ -69,6 +69,32 @@ and pack Claude is working from. Dossiers never change a rank; they are informat
 Claude never runs unattended on a VM — this command is always run from the Mac, by hand, on
 request.
 
+## Nightly metrics & rating (Wave 3)
+
+The fundamental scoring engine runs nightly on the Mac (once calibration is complete and jobs are installed):
+
+1. **Saturday 02:00 IST:** `eqr metrics --monthly-from <last run date>` — builds the 9-pillar fundamental
+   metrics package (fund_metrics table, append-only per as_of date). Watch for PIT violations (a metric
+   uses a statement with visible_from > as_of) or data gaps (UNKNOWN reasons).
+2. **Nightly (after metrics):** `eqr rate --universe --publish` — runs the r1 rating engine over every
+   name in the universe, writes to `ratings` table with all pillars/flags/confidence, appends the base-variant
+   verdict to `rating_ledger` (append-only). Prints a summary of verdict changes and new flags on held names.
+   No LLM involved.
+
+**Web surfaces:**
+- `GET /decision/{symbol}` → one-pager (Markdown or HTML via `--format`), shows pillars, red flags, MoS
+  range, what would change the verdict, data provenance, confidence band.
+- `GET /ratings` → sortable table of all verdicts (symbol, verdict tier, score 0–100, MoS %, DCI band,
+  latest rule), CSV export, pagination.
+- `/advisor/v1/evidence/{symbol}` → fail-soft block for Upstox integration (R6, future); carries the
+  engine's decision block when published.
+
+Claim state: engine ratings are **DIAGNOSTIC** until the r1 calibration run completes (pending holdout
+fold 2024-09 → 2025-08). Once calibration passes the acceptance bar (§6.2 of
+`RESEARCH_BOT_SCORING_METHODOLOGY_PLAN.md`), the claim advances to PROVISIONAL and the verdict becomes
+first-class (published to ledger, surfaced in the digest, available to Upstox). Until then, all ratings
+carry a visible `DIAGNOSTIC` label.
+
 ## How the Upstox integration is meant to work later (R6)
 
 Nothing is wired up yet — this is the plan, not the current state. Once a sleeve is VALIDATED in

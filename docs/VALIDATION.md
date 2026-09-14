@@ -141,6 +141,35 @@ Capacity: median order 0.03% of ADV20, p90 0.20%; turnover 311%/yr; costs 163 bp
   ran; the engine bugs that earlier look found and fixed are listed in the design spec §4.2, not
   repeated here.
 
+## Rating Engine (Wave 3, Layer 1) — DIAGNOSTIC
+
+New institutional fundamental scoring engine: 6-pillar deterministic composite (Moat, Solvency,
+Earnings Quality, Growth, Management, Valuation) with sector profiles, red-flag override gates,
+Data Confidence Index, and intuitive CONVICTION_BUY / SPECULATIVE_BUY / HOLD / TRIM / SELL
+verdicts (no LLM in the compute path of any published number). Engine version **r1** (screener-sourced
+fundamentals, mock XBRL pending backfill) launches as DIAGNOSTIC pending calibration; acceptance bar
+in `eqr/rating/acceptance.py` (§6.1–6.2 of the Methodology Plan at
+`RESEARCH_BOT_SCORING_METHODOLOGY_PLAN.md`). Features:
+
+- **326 tests green** covering model, pillars, flags, confidence, decision matrix, manifest determinism.
+- **DB schema extended:** `ratings` table gains rule_id, profile, mos_base, fv_base/fv_bull/fv_bear, dci_band,
+  valuation_json, decision_json, price; `rating_ledger` gains mos_at_publish, dci_at_publish, verdict_prev.
+  Migration applied + verified live 2026-09-14; rows altered = 0.
+- **CLI:** `eqr metrics --as-of|--monthly-from [--symbols]` builds the fundamentals package;
+  `eqr rate --universe|--symbol [--as-of] [--variant] [--publish] [--calibrate]` runs the engine;
+  `eqr decision {symbol} [--md|--html|--telegram]` renders one-pagers.
+- **Nightly chain:** the Mac `com.eqr.fundamentals` service (Saturday) will chain `metrics` before the
+  nightly `rate --universe --publish` once calibration completes; prospective ledger appends at
+  publication (append-only, no rewrites).
+- Claim state: **DIAGNOSTIC** (step 1 of the ladder; r1 calibration pending calibration run on holdout
+  2024-09-01 → 2025-08). Six open governance items (`AS_RESTATED_FUNDAMENTALS`, `BENCH_PROXY`,
+  `CONTROLS_NO_HISTORY` for forward-only flags, XBRL backfill pending, money-weighted returns are XIRR-engine
+  certified before quote) keep this at DIAGNOSTIC until resolution.
+
+Methodology reference: `docs/superpowers/plans/2026-09-14-fundamentals-x10-plan.md` (approved design) and the
+new `RESEARCH_BOT_SCORING_METHODOLOGY_PLAN.md` (implementation architecture, all six pillars, decision rules,
+calibration protocol, test plan, manifest contracts).
+
 ## Sleeve S — DIAGNOSTIC
 
 Source: `data/reports/validate-20260914-064307-495ffd/report.md` (2017-06-01 -> 2026-09-11,

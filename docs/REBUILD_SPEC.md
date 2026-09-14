@@ -106,7 +106,10 @@ Names and purpose only — values live in the gitignored `.env` (copied from `.e
 | `TELEGRAM_CHAT_ID` | Destination chat for the digest | `.env` | required for `eqr digest --send` |
 | `ANTHROPIC_API_KEY` | Optional API path for dossiers | `.env` | optional — unset uses the `claude` CLI on the Mac instead |
 | `EQR_CLAUDE_MODEL` | Model name for dossier runs | `.env` | optional |
-| `EQR_RISK_FREE_PCT` | Annual risk-free rate (%) used in cost model and regime pricing | `.env` | optional (default 6.0) |
+| `EQR_RISK_FREE_PCT` | Annual risk-free rate (%) used in cost model, regime pricing, and rating WACC calc (Damodaran India baseline) | `.env` | optional (default 6.0) |
+| `EQR_ERP_PCT` | Equity risk premium (%) for WACC calculation (Damodaran India baseline) | `.env` | optional (default 5.5) |
+| `EQR_TAX_RATE_PCT` | Statutory corporate tax rate (%) used in NOPAT and WACC comps (rating engine only) | `.env` | optional (default 25.0) |
+| `EQR_TERMINAL_GROWTH_PCT` | Terminal growth rate (%) for DCF and valuation models (rating engine Pillar 6) | `.env` | optional (default 5.0) |
 | `EQR_EXPERIMENTS_DIR` | Override the experiments directory (default: `<project>/experiments`) | `.env` | optional |
 | `RESTIC_REPOSITORY` | Restic backup repository target | `.env` on the VM | required for `deploy/backup.sh` to do anything |
 | `RESTIC_PASSWORD` | Restic repository password | `.env` on the VM | required with `RESTIC_REPOSITORY` |
