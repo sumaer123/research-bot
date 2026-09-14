@@ -24,14 +24,16 @@ def test_walk_forward_on_planted_market(tmp_db, monkeypatch, tmp_path):
             grid.append(c)
     wf = WalkForwardConfig(sleeve="L", start=days[300].date(), end=days[-1].date(), holdout_start=date(2022, 6, 1),
                            fold_years=[2020, 2021, 2022], capital=1e6, costs=ZERO_BROKERAGE, grid=grid,
-                           robustness_turnover=(1.0,))
+                           robustness_turnover=(1.0,), prior_trials=4)
     out = run_walk_forward(tmp_db, wf)
     assert len(out["folds"]) >= 2 and out["oos"]["sharpe"] > 0
     assert out["rf_annual"] == wf.rf_annual
+    assert out["prior_trials"] == 4 and out["dsr"]["n_trials"] == len(out["grid"]) + 4
     assert out["holdout"]["selected"] in out["grid"]
     assert set(c["check"] for c in out["acceptance"]["checks"]) >= {"oos_sharpe", "deflated_sharpe", "capacity"}
     path = write_walkforward_report(tmp_db, out, "wf-test")
     assert (path / "report.md").exists() and (path / "oos_equity.csv").exists()
+    assert "ledger" in (path / "report.md").read_text()
     row = tmp_db.execute("SELECT verdict FROM backtests WHERE run_id = 'wf-test'").fetchone()
     assert row and row[0] in ("VALIDATED", "NOT VALIDATED")
 

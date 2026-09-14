@@ -39,6 +39,7 @@ class WalkForwardConfig:
     embargo_days: int = 30
     purge_sessions: Optional[int] = None
     robustness_turnover: tuple[float, ...] = (3e7,)
+    prior_trials: int = 0                         # distinct configs tried in earlier runs (trial ledger)
     rf_annual: float = field(default_factory=lambda: settings().risk_free_pct / 100)
 
     def __post_init__(self):
@@ -108,7 +109,8 @@ def run_walk_forward(con: duckdb.DuckDBPyConnection, wf: WalkForwardConfig,
         if len(rr) > 30 and rr.std(ddof=1) > 0:
             trial_srs.append(rr.mean() / rr.std(ddof=1))
     trial_var = float(np.var(trial_srs, ddof=1)) if len(trial_srs) > 1 else None
-    dsr = deflated_sharpe(oos, n_trials=len(wf.grid), trial_sr_var=trial_var, rf_annual=wf.rf_annual) if len(oos) > 50 else {}
+    n_trials = len(wf.grid) + wf.prior_trials
+    dsr = deflated_sharpe(oos, n_trials=n_trials, trial_sr_var=trial_var, rf_annual=wf.rf_annual) if len(oos) > 50 else {}
 
     # holdout: config chosen on everything before the holdout (with embargo), evaluated once
     ho_train_end = wf.holdout_start - timedelta(days=wf.embargo_days)
@@ -155,6 +157,7 @@ def run_walk_forward(con: duckdb.DuckDBPyConnection, wf: WalkForwardConfig,
                                 "costs_bps_annual", "excess_cagr", "final_equity")} for k, r in results.items()}
     return {"sleeve": wf.sleeve, "start": str(wf.start), "end": str(wf.end), "holdout_start": str(wf.holdout_start),
             "capital": wf.capital, "costs": wf.costs.to_dict(), "rf_annual": wf.rf_annual, "grid": [_key(c) for c in wf.grid],
+            "prior_trials": wf.prior_trials, "embargo_days": wf.embargo_days, "purge_sessions": wf.purge_sessions,
             "folds": folds, "oos": oos_metrics, "dsr": dsr, "holdout": holdout, "robustness": robustness,
             "capacity": capacity, "acceptance": acceptance, "per_config": per_config,
             "_results": results, "_oos": oos, "_oos_bench": oos_b}

@@ -78,7 +78,8 @@ def write_walkforward_report(con: duckdb.DuckDBPyConnection, wf: dict, run_id: s
            f"| Sharpe | {_num(o.get('sharpe'))} | {_num(o.get('bench_sharpe'))} |",
            f"| Max drawdown | {_pct(o.get('max_drawdown'))} | {_pct(o.get('bench_max_drawdown'))} |",
            f"| Information ratio | {_num(o.get('information_ratio'))} | |",
-           f"| Deflated Sharpe p-value | {_num(d.get('p_value'), 3)} (SR0 {_num(d.get('sr0_annual'))}, trials {d.get('n_trials')}) | |",
+           f"| Deflated Sharpe p-value | {_num(d.get('p_value'), 3)} (SR0 {_num(d.get('sr0_annual'))}, "
+           f"trials {d.get('n_trials')} = grid {len(wf['grid'])} + ledger {wf.get('prior_trials', 0)}) | |",
            "", "## Folds", "", "| Year | Selected | Train Sharpe | Test Sharpe | Test CAGR | Index CAGR | Excess | Test maxDD |", "|---|---|---|---|---|---|---|---|"]
     md += [f"| {f['year']} | {f['selected']} | {f['train_sharpe']} | {f['test_sharpe']} | {_pct(f['test_cagr'])} | "
            f"{_pct(f['test_bench_cagr'])} | {_pct(f['test_excess_cagr'])} | {_pct(f['test_max_drawdown'])} |" for f in wf["folds"]]

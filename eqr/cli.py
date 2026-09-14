@@ -267,6 +267,8 @@ def backtest(sleeve: str = typer.Option("L", "--sleeve"), start: str = typer.Opt
         run_id = new_run(con, "backtest", f"{sleeve} {start}..{e}")
         res = run_backtest(con, cfg, progress=lambda m: typer.echo(m, err=True))
         path = write_backtest_report(con, res, run_id, f"Backtest — Sleeve {sleeve.upper()} N={top} {variant}")
+        from .validate.trials import log_backtest
+        log_backtest(res.config, run_id, purpose="exploratory", report_path=path)
         end_run(con, run_id, "OK", str(path))
         typer.echo((path / "report.md").read_text())
     finally:
@@ -276,24 +278,44 @@ def backtest(sleeve: str = typer.Option("L", "--sleeve"), start: str = typer.Opt
 @app.command()
 def validate(sleeve: str = typer.Option("L", "--sleeve"), start: str = typer.Option("2017-01-01", "--start"),
              end: Optional[str] = typer.Option(None, "--end"), holdout_start: str = typer.Option("2025-09-01", "--holdout-start"),
-             capital: float = typer.Option(1_000_000, "--capital"), first_fold_year: int = typer.Option(2019, "--first-fold-year")):
+             capital: float = typer.Option(1_000_000, "--capital"), first_fold_year: int = typer.Option(2019, "--first-fold-year"),
+             purpose: str = typer.Option("protocol", "--purpose", help="exploratory|protocol|repair (trial ledger)")):
     """Pre-registered walk-forward validation with the acceptance bar; writes a report."""
     from .store import connect, new_run, end_run
-    from .validate.walkforward import WalkForwardConfig, run_walk_forward
+    from .validate.walkforward import WalkForwardConfig, run_walk_forward, _key
     from .validate.report import write_walkforward_report
+    from .validate.trials import prior_distinct_trials, log_walkforward
     con = connect()
     try:
         e = _d(end) or con.execute("SELECT max(trade_date) FROM trading_days").fetchone()[0]
         hs = _d(holdout_start)
         years = list(range(first_fold_year, hs.year + 1))
         wf = WalkForwardConfig(sleeve=sleeve.upper(), start=_d(start), end=e, holdout_start=hs, fold_years=years, capital=capital)
+        grid_keys = [_key(c) for c in wf.grid]
+        wf.prior_trials = prior_distinct_trials(sleeve.upper(), exclude=grid_keys)
         run_id = new_run(con, "validate", f"{sleeve} {start}..{e}")
         out = run_walk_forward(con, wf, progress=lambda m: typer.echo(m, err=True))
         path = write_walkforward_report(con, out, run_id)
+        log_walkforward(out, run_id, purpose=purpose, report_path=path)
         end_run(con, run_id, out["acceptance"]["verdict"], str(path))
         typer.echo((path / "report.md").read_text())
     finally:
         con.close()
+
+
+@app.command()
+def trials(seed: bool = typer.Option(False, "--seed", help="backfill the ledger from data/reports/ (purpose=repair)"),
+           sleeve: str = typer.Option("L", "--sleeve")):
+    """Show or seed the append-only trial ledger (true multiple-testing count)."""
+    from .validate import trials as tr
+    if seed:
+        typer.echo(json.dumps(tr.seed_from_reports()))
+        return
+    s = sleeve.upper()
+    rows = tr.read_trials(s)
+    typer.echo(f"{s}: {len(rows)} runs · {len(tr.distinct_keys(s))} distinct configs")
+    for t in rows:
+        typer.echo(f"  {t.get('ts')} {t.get('purpose'):<11} n_grid={t.get('n_grid')} {t.get('run_id')}")
 
 
 @app.command()
