@@ -133,20 +133,22 @@ Capacity: median order 0.03% of ADV20, p90 0.20%; turnover 311%/yr; costs 163 bp
 
 ## Sleeve S — NOT VALIDATED
 
-Source: `data/reports/validate-20260914-061830-bce33a/report.md` (2017-06-01 -> 2026-09-11,
-holdout from 2025-09-01, Rs 1,000,000 capital, 6 pre-registered trials) — the only S run made
-today.
+Source: `data/reports/validate-20260914-064307-495ffd/report.md` (2017-06-01 -> 2026-09-11,
+holdout from 2025-09-01, Rs 1,000,000 capital, 6 pre-registered trials) — the second of two S
+runs made today. The first (`validate-20260914-061830-bce33a`) printed a robustness table with
+every row duplicated and mislabelled "4 variants"; this rerun corrects that to the true 2
+variants. The verdict is unchanged (NOT VALIDATED) — the figures below are the corrected ones.
 
 ### Verdict: NOT VALIDATED
 
 | Check | Status | Detail |
 |---|---|---|
-| oos_sharpe | FAIL | OOS Sharpe -0.17 vs >= 0.8 |
-| oos_information_ratio | FAIL | IR vs NIFTY 500 TR proxy -0.87 vs >= 0.5 |
-| oos_drawdown_not_worse_than_index | PASS | strategy MTM maxDD -35.2% vs index -38.2% |
-| deflated_sharpe | FAIL | DSR p-value 0.835 (trials 6) vs < 0.05 |
+| oos_sharpe | FAIL | OOS Sharpe -0.22 vs >= 0.8 |
+| oos_information_ratio | FAIL | IR vs NIFTY 500 TR proxy -0.92 vs >= 0.5 |
+| oos_drawdown_not_worse_than_index | PASS | strategy MTM maxDD -33.3% vs index -38.2% |
+| deflated_sharpe | FAIL | DSR p-value 0.855 (trials 6) vs < 0.05 |
 | recent_folds_positive_excess | FAIL | 1 of 4 most recent folds beat the index |
-| robust_across_variants | FAIL | worst variant Sharpe 0.04, all variants beat index: False (4 variants) |
+| robust_across_variants | FAIL | worst variant Sharpe 0.04, all variants beat index: False (2 variants) |
 | capacity | PASS | median order 0.01% of ADV20 at the stated capital |
 
 Only 2 of 7 checks pass — a clean failure, not a borderline one.
@@ -155,59 +157,54 @@ Only 2 of 7 checks pass — a clean failure, not a borderline one.
 
 | Metric | Strategy | Index |
 |---|---|---|
-| CAGR | 2.2% | 15.5% |
-| Sharpe | -0.17 | 0.59 |
-| Max drawdown | -35.2% | -38.2% |
-| Information ratio | -0.87 | |
-| Deflated Sharpe p-value | 0.835 (SR0 0.22, trials 6) | |
+| CAGR | 1.3% | 15.5% |
+| Sharpe | -0.22 | 0.59 |
+| Max drawdown | -33.3% | -38.2% |
+| Information ratio | -0.92 | |
+| Deflated Sharpe p-value | 0.855 (SR0 0.20, trials 6) | |
 
 ### Folds
 
 | Year | Selected | Train Sharpe | Test Sharpe | Test CAGR | Index CAGR | Excess | Test maxDD |
 |---|---|---|---|---|---|---|---|
-| 2019 | S-N30-breakout_tilt-T3cr | -1.632 | -1.352 | -6.0% | 10.1% | -16.1% | -10.7% |
-| 2020 | S-N30-breakout_tilt-T3cr | -1.546 | -0.348 | -0.9% | 19.6% | -20.4% | -16.6% |
-| 2021 | S-N30-flow_tilt-T3cr | -0.815 | 1.188 | 28.9% | 28.0% | 0.9% | -16.9% |
-| 2022 | S-N20-flow_tilt-T3cr | -0.056 | -1.707 | -19.1% | 1.0% | -20.0% | -25.9% |
-| 2023 | S-N20-flow_tilt-T3cr | -0.188 | 1.743 | 36.5% | 28.3% | 8.2% | -11.6% |
-| 2024 | S-N20-flow_tilt-T3cr | -0.025 | -0.92 | -11.2% | 17.1% | -28.2% | -19.6% |
-| 2025 | S-N20-flow_tilt-T3cr | -0.116 | -0.515 | -2.0% | 2.9% | -4.9% | -11.0% |
+| 2019 | S-N30-breakout_tilt-T3cr | -1.716 | -1.526 | -9.0% | 10.1% | -19.1% | -13.1% |
+| 2020 | S-N30-breakout_tilt-T3cr | -1.666 | -0.217 | 1.2% | 19.6% | -18.3% | -16.2% |
+| 2021 | S-N30-flow_tilt-T3cr | -0.711 | 1.155 | 28.2% | 28.0% | 0.2% | -17.8% |
+| 2022 | S-N20-flow_tilt-T3cr | -0.129 | -1.526 | -17.2% | 1.0% | -18.2% | -25.7% |
+| 2023 | S-N20-flow_tilt-T3cr | -0.219 | 1.683 | 35.2% | 28.3% | 6.9% | -10.6% |
+| 2024 | S-N20-flow_tilt-T3cr | -0.065 | -1.054 | -13.5% | 17.1% | -30.5% | -21.2% |
+| 2025 | S-N20-flow_tilt-T3cr | -0.157 | -0.817 | -5.7% | 2.9% | -8.6% | -11.3% |
 
 ### Holdout (2025-09-01 -> 2026-09-11, evaluated once)
 
-Selected `S-N20-flow_tilt-T3cr` — CAGR -8.3% vs index 1.2%, Sharpe -1.11, maxDD -19.4% vs index
+Selected `S-N20-flow_tilt-T3cr` — CAGR -12.4% vs index 1.2%, Sharpe -1.45, maxDD -20.9% vs index
 -14.6%. The holdout confirms the OOS failure; it does not overturn it.
 
 ### Robustness (selected variant across N and liquidity floors)
 
 | Variant | Sharpe | CAGR | Excess | MaxDD |
 |---|---|---|---|---|
-| S-N20-flow_tilt-T3cr | 0.16 | 7.4% | -8.4% | -33.5% |
-| S-N20-flow_tilt-T3cr | 0.16 | 7.4% | -8.4% | -33.5% |
-| S-N30-flow_tilt-T3cr | 0.045 | 5.6% | -10.2% | -33.4% |
-| S-N30-flow_tilt-T3cr | 0.045 | 5.6% | -10.2% | -33.4% |
-
-(reproduced exactly as the report prints it, including the repeated rows — Sleeve L's robustness
-table varies both N and the liquidity floor into four distinct rows; Sleeve S's does not.)
+| S-N20-flow_tilt-T3cr | 0.084 | 6.1% | -9.7% | -31.7% |
+| S-N30-flow_tilt-T3cr | 0.039 | 5.5% | -10.3% | -35.0% |
 
 ### All trials (full period, net)
 
 | Trial | CAGR | Sharpe | MaxDD | IR | Turnover | Costs bps |
 |---|---|---|---|---|---|---|
-| S-N20-base-T3cr | -4.4% | -0.59 | -42.4% | -1.12 | 2156% | 1329 |
-| S-N20-breakout_tilt-T3cr | -2.8% | -0.49 | -37.8% | -1.01 | 2110% | 1269 |
-| S-N20-flow_tilt-T3cr | 1.7% | -0.21 | -43.8% | -0.77 | 2009% | 1161 |
-| S-N30-base-T3cr | -3.5% | -0.57 | -42.4% | -1.14 | 1934% | 1350 |
-| S-N30-breakout_tilt-T3cr | -2.4% | -0.51 | -37.8% | -1.07 | 1854% | 1268 |
-| S-N30-flow_tilt-T3cr | 0.4% | -0.33 | -43.3% | -0.91 | 1808% | 1181 |
+| S-N20-base-T3cr | -5.0% | -0.62 | -43.7% | -1.17 | 2149% | 1337 |
+| S-N20-breakout_tilt-T3cr | -3.9% | -0.56 | -38.1% | -1.09 | 2119% | 1297 |
+| S-N20-flow_tilt-T3cr | 0.2% | -0.31 | -46.0% | -0.88 | 2023% | 1180 |
+| S-N30-base-T3cr | -3.8% | -0.58 | -42.7% | -1.17 | 1943% | 1364 |
+| S-N30-breakout_tilt-T3cr | -2.9% | -0.53 | -41.5% | -1.11 | 1869% | 1293 |
+| S-N30-flow_tilt-T3cr | 0.2% | -0.33 | -43.0% | -0.93 | 1814% | 1183 |
 
-Capacity: median order 0.01% of ADV20, p90 0.05%; turnover 2009%/yr; costs 1161 bps/yr.
+Capacity: median order 0.01% of ADV20, p90 0.05%; turnover 2023%/yr; costs 1180 bps/yr.
 
 ### Why it failed, in plain language
 
 Every trial in the table above loses money after costs, and every trial trades an enormous
-amount to get there — turnover of 1,800% to 2,150% of the book per year, which alone costs
-1,160 to 1,350 basis points a year. The weekly design churns the whole book too often for
+amount to get there — turnover of roughly 1,800% to 2,150% of the book per year, which alone
+costs 1,180 to 1,360 basis points a year. The weekly design churns the whole book too often for
 whatever edge it has to survive. Sleeve S stays a diagnostic line only. The next pre-registered
 experiment (spec §12a) is a hold-period discipline — hold a position for a minimum of four
 weeks, exit only on a stop or once it falls past rank 3N — not a new signal. Until that

@@ -109,8 +109,8 @@ before trusting the headline number:
 - the base configuration's full-period result was seen once before the protocol ran; the engine
   bugs that pass found and fixed are listed in the design spec §4.2.
 
-**Sleeve S: NOT VALIDATED.** OOS Sharpe -0.17, IR -0.87, deflated-Sharpe p = 0.835; turnover
-~2,000%/yr drives costs to 1,160-1,350 bps/yr, which erases any signal the weekly design has. It
+**Sleeve S: NOT VALIDATED.** OOS Sharpe -0.22, IR -0.92, deflated-Sharpe p = 0.855; turnover
+~2,000%/yr drives costs to 1,180-1,360 bps/yr, which erases any signal the weekly design has. It
 is never exposed to Project Upstox as anything but a diagnostic line. The next pre-registered
 experiment is a hold-period discipline (minimum four weeks, exit on stop or rank beyond 3N), not
 a change to the signal. Full fold-by-fold detail for both sleeves: `docs/VALIDATION.md`.

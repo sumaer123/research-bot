@@ -92,7 +92,7 @@ own docs, not here.
   gap means fetching statements for the ~450 delisted names by their BSE code — not started.
 - **Sleeve S redesign hypothesis.** Sleeve S failed validation (NOT VALIDATED, see
   `docs/VALIDATION.md`) because its weekly design churns the entire book every week (turnover
-  ~2,000%/yr, costs 1,160-1,350 bps/yr) — the next pre-registered experiment is a hold-period
+  ~2,000%/yr, costs 1,180-1,360 bps/yr) — the next pre-registered experiment is a hold-period
   discipline (minimum four weeks, exit only on a stop or falling past rank 3N), not a new signal.
   Not started; Sleeve S stays a diagnostic line only until it passes a fresh, pre-registered run.
 - **VM not yet provisioned.** Everything above runs on the Mac only. No Hetzner/GCP account has
