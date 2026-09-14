@@ -345,6 +345,75 @@ def test_first_seen_wins_and_revision_logged(tmp_db, q2018):
     assert flag is True
 
 
+def test_quarter_and_ytd_both_persist(tmp_db, q2018):
+    """OneD (quarter) and FourD (YTD/FY) share period_end but differ in period_start
+    -> BOTH rows persist now that period_start is in the PK (YTD no longer dropped)."""
+    load_parsed_xbrl(tmp_db, "TESTCO", q2018, date(2018, 5, 15), "https://x/q.xml")
+    rows = tmp_db.execute(
+        "SELECT period_start, period_kind, value FROM statements_xbrl "
+        "WHERE symbol='TESTCO' AND tag='RevenueFromOperations' AND period_end='2018-03-31' "
+        "AND kind='D' ORDER BY period_start").fetchall()
+    assert len(rows) == 2, "quarter and YTD must coexist as distinct rows"
+    starts = {r[0] for r in rows}
+    assert starts == {date(2017, 4, 1), date(2018, 1, 1)}   # FY start vs Q4 start
+    kinds = {r[1] for r in rows}
+    assert kinds == {"Q", "FY"}
+    # scaled to crore: Q4 = 100000 Lakhs/100 = 1000; FY = 380000/100 = 3800
+    by_start = {r[0]: r[2] for r in rows}
+    assert by_start[date(2018, 1, 1)] == pytest.approx(1000.0)
+    assert by_start[date(2017, 4, 1)] == pytest.approx(3800.0)
+
+
+def test_quarter_equals_ytd_same_start_collapses():
+    """A Q1 filing where the current quarter and the YTD share the SAME start date
+    (Apr-Jun == Apr-Jun) collapses to one row (identical PK)."""
+    xml = b"""<?xml version="1.0"?>
+    <xbrli:xbrl xmlns:xbrli="http://www.xbrl.org/2003/instance"
+        xmlns:in-capmkt="http://www.sebi.gov.in/xbrl/2025-01-31/in-capmkt"
+        xmlns:iso4217="http://www.xbrl.org/2003/iso4217">
+      <xbrli:context id="OneD"><xbrli:period>
+        <xbrli:startDate>2025-04-01</xbrli:startDate><xbrli:endDate>2025-06-30</xbrli:endDate>
+      </xbrli:period></xbrli:context>
+      <xbrli:context id="FourD"><xbrli:period>
+        <xbrli:startDate>2025-04-01</xbrli:startDate><xbrli:endDate>2025-06-30</xbrli:endDate>
+      </xbrli:period></xbrli:context>
+      <xbrli:unit id="INR"><xbrli:measure>iso4217:INR</xbrli:measure></xbrli:unit>
+      <in-capmkt:LevelOfRounding contextRef="OneD">Lakhs</in-capmkt:LevelOfRounding>
+      <in-capmkt:RevenueFromOperations contextRef="OneD" unitRef="INR">50000.0</in-capmkt:RevenueFromOperations>
+      <in-capmkt:RevenueFromOperations contextRef="FourD" unitRef="INR">50000.0</in-capmkt:RevenueFromOperations>
+    </xbrli:xbrl>"""
+    import tempfile
+    from eqr.store import connect
+    with tempfile.TemporaryDirectory() as d:
+        con = connect(Path(d) / "eqr.duckdb")
+        try:
+            load_parsed_xbrl(con, "Q1CO", parse_xbrl(xml), date(2025, 8, 1), "https://x/q1.xml")
+            rows = con.execute(
+                "SELECT count(*) FROM statements_xbrl WHERE symbol='Q1CO' "
+                "AND tag='RevenueFromOperations'").fetchone()[0]
+            assert rows == 1, "identical (start,end) contexts collapse to one row"
+            revs = con.execute(
+                "SELECT count(*) FROM statements_xbrl_revisions WHERE symbol='Q1CO'").fetchone()[0]
+            assert revs == 0, "identical values collapsing must not log a revision"
+        finally:
+            con.close()
+
+
+def test_reload_identical_preserves_both_periods_no_revision(tmp_db, q2018):
+    """Re-loading the same quarterly file (both quarter + YTD) is idempotent: both
+    rows remain, no spurious revision from the co-terminating YTD."""
+    load_parsed_xbrl(tmp_db, "TESTCO", q2018, date(2018, 5, 15), "https://x/v1.xml")
+    load_parsed_xbrl(tmp_db, "TESTCO", _load("xbrl_q_2018.xml"), date(2018, 8, 1),
+                     "https://x/v1b.xml")
+    rows = tmp_db.execute(
+        "SELECT count(*) FROM statements_xbrl WHERE symbol='TESTCO' "
+        "AND tag='RevenueFromOperations' AND period_end='2018-03-31'").fetchone()[0]
+    assert rows == 2
+    revs = tmp_db.execute(
+        "SELECT count(*) FROM statements_xbrl_revisions WHERE symbol='TESTCO'").fetchone()[0]
+    assert revs == 0
+
+
 def test_reload_identical_is_idempotent_no_revision(tmp_db, q2018):
     load_parsed_xbrl(tmp_db, "TESTCO", q2018, date(2018, 5, 15), "https://x/v1.xml")
     load_parsed_xbrl(tmp_db, "TESTCO", _load("xbrl_q_2018.xml"), date(2018, 8, 1),

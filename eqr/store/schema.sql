@@ -136,11 +136,11 @@ CREATE TABLE IF NOT EXISTS statements_xbrl (
   symbol VARCHAR, basis VARCHAR, period_end DATE, period_start DATE, kind VARCHAR,       -- kind: D (duration) | I (instant)
   period_kind VARCHAR, tag VARCHAR, item VARCHAR, dims_key VARCHAR, value DOUBLE, text_value VARCHAR,
   unit VARCHAR, taxonomy VARCHAR, filing_dt TIMESTAMP, fetched_at TIMESTAMP, as_of DATE, visible_from DATE,
-  PRIMARY KEY (symbol, basis, period_end, kind, tag, dims_key));
+  PRIMARY KEY (symbol, basis, period_end, period_start, kind, tag, dims_key));
 CREATE TABLE IF NOT EXISTS statements_xbrl_revisions (
-  symbol VARCHAR, basis VARCHAR, period_end DATE, kind VARCHAR, tag VARCHAR, dims_key VARCHAR,
+  symbol VARCHAR, basis VARCHAR, period_end DATE, period_start DATE, kind VARCHAR, tag VARCHAR, dims_key VARCHAR,
   value DOUBLE, text_value VARCHAR, filing_dt TIMESTAMP, fetched_at TIMESTAMP, source_url VARCHAR,
-  PRIMARY KEY (symbol, basis, period_end, kind, tag, dims_key, fetched_at));
+  PRIMARY KEY (symbol, basis, period_end, period_start, kind, tag, dims_key, fetched_at));
 CREATE TABLE IF NOT EXISTS xbrl_filings (
   symbol VARCHAR, period_end DATE, basis VARCHAR, xbrl_url VARCHAR, filing_dt TIMESTAMP, taxonomy VARCHAR,
   status VARCHAR, facts INTEGER, rounding VARCHAR, scale_to_cr DOUBLE, scale_inferred BOOLEAN, is_bank BOOLEAN,

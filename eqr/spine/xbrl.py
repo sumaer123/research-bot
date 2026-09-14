@@ -548,34 +548,26 @@ def load_parsed_xbrl(con: duckdb.DuckDBPyConnection, symbol: str, parsed: Parsed
     n_canonical = n_raw = n_written = n_revisions = 0
     revised = False
 
-    # The primary-key grain is (symbol, basis, period_end, kind, tag, dims_key) --
-    # it does NOT include the period span, so a filing's current-period context and
-    # its YTD/cumulative context (both duration, same end date) collide on one row.
-    # Keep the SHORTEST-span duration (the as-reported figure for the period); the
-    # YTD is redundant and derivable. Without this, the YTD fact would look like a
-    # spurious "revision" of the current-period fact.
-    chosen: dict[tuple, tuple] = {}   # pk_key -> (span_days, Fact, ctx)
+    # PK grain = (symbol, basis, period_end, period_start, kind, tag, dims_key).
+    # period_start is in the key, so a filing's current-period context and its
+    # YTD/cumulative context (both duration, same period_end but DIFFERENT
+    # period_start) persist as two distinct rows -- the YTD is no longer dropped.
+    # A Q1 filing where the quarter and the YTD share a start date collapses
+    # naturally to one row (identical key). period_start is a PK column and DuckDB
+    # forbids NULL in a PK, so an instant stores period_start = period_end (kind='I'
+    # still distinguishes it; a co-terminating duration has an earlier start).
     for f in parsed.facts:
         ctx = parsed.context(f.context_ref)
         if ctx is None:
             continue
-        p_end = ctx.period_end if ctx.kind == "D" else ctx.instant
-        if p_end is None:
-            continue
-        key = (basis, p_end, ctx.kind, f.tag, f.dims_key)
-        if ctx.kind == "D" and ctx.period_start is not None:
-            span = (p_end - ctx.period_start).days
-        else:
-            span = 0
-        prior = chosen.get(key)
-        if prior is None or span < prior[0]:
-            chosen[key] = (span, f, ctx)
-
-    for _key, (_span, f, ctx) in chosen.items():
         kind = ctx.kind
         p_end = ctx.period_end if kind == "D" else ctx.instant
-        p_start = ctx.period_start if kind == "D" else None
-        pk = period_kind(p_start, p_end) if kind == "D" else "I"
+        if p_end is None:
+            continue  # cannot key a row without a period end/instant
+        p_start = ctx.period_start if kind == "D" else p_end
+        if p_start is None:
+            continue  # duration with no start cannot be keyed
+        pk = period_kind(ctx.period_start, p_end) if kind == "D" else "I"
         item = canonical_item(f.tag, parsed.is_bank)
 
         # scale only pure monetary INR amounts; ratios/per-share/shares/text untouched
@@ -596,8 +588,8 @@ def load_parsed_xbrl(con: duckdb.DuckDBPyConnection, symbol: str, parsed: Parsed
 
         existing = con.execute(
             "SELECT value, text_value FROM statements_xbrl WHERE symbol=? AND basis=? "
-            "AND period_end=? AND kind=? AND tag=? AND dims_key=?",
-            [symbol, basis, p_end, kind, f.tag, f.dims_key]).fetchone()
+            "AND period_end=? AND period_start=? AND kind=? AND tag=? AND dims_key=?",
+            [symbol, basis, p_end, p_start, kind, f.tag, f.dims_key]).fetchone()
 
         if existing is None:
             con.execute(
@@ -614,17 +606,17 @@ def load_parsed_xbrl(con: duckdb.DuckDBPyConnection, symbol: str, parsed: Parsed
             # unless this exact value was already logged.
             dup = con.execute(
                 "SELECT 1 FROM statements_xbrl_revisions WHERE symbol=? AND basis=? "
-                "AND period_end=? AND kind=? AND tag=? AND dims_key=? "
+                "AND period_end=? AND period_start=? AND kind=? AND tag=? AND dims_key=? "
                 "AND ((value IS NULL AND ? IS NULL) OR value = ?) "
                 "AND ((text_value IS NULL AND ? IS NULL) OR text_value = ?)",
-                [symbol, basis, p_end, kind, f.tag, f.dims_key,
+                [symbol, basis, p_end, p_start, kind, f.tag, f.dims_key,
                  value, value, text_value, text_value]).fetchone()
             if dup is None:
                 con.execute(
-                    "INSERT INTO statements_xbrl_revisions (symbol, basis, period_end, kind, "
-                    "tag, dims_key, value, text_value, filing_dt, fetched_at, source_url) "
-                    "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-                    [symbol, basis, p_end, kind, f.tag, f.dims_key, value, text_value,
+                    "INSERT INTO statements_xbrl_revisions (symbol, basis, period_end, period_start, "
+                    "kind, tag, dims_key, value, text_value, filing_dt, fetched_at, source_url) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                    [symbol, basis, p_end, p_start, kind, f.tag, f.dims_key, value, text_value,
                      filing_ts, fetched_at, source_url])
                 n_revisions += 1
                 revised = True
