@@ -71,29 +71,53 @@ request.
 
 ## Nightly metrics & rating (Wave 3)
 
-The fundamental scoring engine runs nightly on the Mac (once calibration is complete and jobs are installed):
+The fundamental scoring engine runs on the Mac (calibration complete as of 2026-09-14; r1 NOT VALIDATED, claim DIAGNOSTIC):
 
-1. **Saturday 02:00 IST:** `eqr metrics --monthly-from <last run date>` — builds the 9-pillar fundamental
-   metrics package (fund_metrics table, append-only per as_of date). Watch for PIT violations (a metric
-   uses a statement with visible_from > as_of) or data gaps (UNKNOWN reasons).
-2. **Nightly (after metrics):** `eqr rate --universe --publish` — runs the r1 rating engine over every
-   name in the universe, writes to `ratings` table with all pillars/flags/confidence, appends the base-variant
-   verdict to `rating_ledger` (append-only). Prints a summary of verdict changes and new flags on held names.
-   No LLM involved.
+### Calibration
 
-**Web surfaces:**
-- `GET /decision/{symbol}` → one-pager (Markdown or HTML via `--format`), shows pillars, red flags, MoS
-  range, what would change the verdict, data provenance, confidence band.
-- `GET /ratings` → sortable table of all verdicts (symbol, verdict tier, score 0–100, MoS %, DCI band,
-  latest rule), CSV export, pagination.
-- `/advisor/v1/evidence/{symbol}` → fail-soft block for Upstox integration (R6, future); carries the
-  engine's decision block when published.
+Run once per engine version, stores results to `data/reports/calibrate-<engine>-<timestamp>/`:
 
-Claim state: engine ratings are **DIAGNOSTIC** until the r1 calibration run completes (pending holdout
-fold 2024-09 → 2025-08). Once calibration passes the acceptance bar (§6.2 of
-`RESEARCH_BOT_SCORING_METHODOLOGY_PLAN.md`), the claim advances to PROVISIONAL and the verdict becomes
-first-class (published to ledger, surfaced in the digest, available to Upstox). Until then, all ratings
-carry a visible `DIAGNOSTIC` label.
+```
+eqr rate --calibrate --engine r1
+```
+
+Writes `calibration.json` (acceptance-bar table + tier statistics), `history.csv` (all ratings by month), `report.md` (summary).
+Also appends one row to `rating_calibrations` and one entry to `experiments/trials-RATING-r1.jsonl`. Holds the DuckDB writer lock
+for ~25 minutes; the web app returns 503 (Service Unavailable) until the lock is released. Once complete, see
+`docs/VALIDATION.md` for the r1 acceptance-bar outcome.
+
+### Nightly schedule (after calibration completes)
+
+1. **Saturday 02:00 IST:** `eqr metrics --monthly-from <last run date>` — builds the 9-pillar fundamental metrics package
+   (fund_metrics table, append-only per as_of date). Watch for PIT violations or data gaps (UNKNOWN).
+   Then: `eqr rate --recompute --publish` — recomputes verdicts with the newest metrics, appends to `rating_ledger`.
+
+2. **Weekdays 19:45 IST** (after `eqr refresh`): `eqr rate --publish` — runs the r1 engine with the latest prices/data,
+   appends new verdicts to `rating_ledger` (append-only, no rewrites). Prints a summary of verdict changes and new flags
+   on held names. No LLM involved.
+
+### One-pagers & verdict routes
+
+```
+eqr decision RELIANCE [--fmt md|html|telegram]
+```
+
+Routes:
+- `GET /decision/{symbol}` → one-pager (Markdown by default)
+- `GET /decision/{symbol}.md` → one-pager (Markdown)
+- `GET /decision/{symbol}.html` → one-pager (HTML)
+- `GET /ratings` → sortable table (symbol, verdict tier, score 0–100, MoS %, DCI band, latest rule)
+- `GET /ratings.csv` → CSV export
+- `/advisor/v1/evidence/{symbol}` → fail-soft block for Upstox integration (R6); carries the engine's decision block when published.
+  **Status: blocked by pre-existing unset `EQR_ADVISOR_TOKEN` (design: no rating flows to Upstox until the advisor API token is set).**
+
+### Claim state
+
+Engine ratings are **DIAGNOSTIC** (step 1 of the 4-step claim ladder): the r1 calibration ran on holdout 2024-09-30 → 2025-08
+and returned 5 pass / 16 fail / 2 not evaluable on the acceptance bar (NOT VALIDATED). All ratings carry a visible `DIAGNOSTIC` label.
+The nightly publish still appends to `rating_ledger` (prospective history, matured at 12 months); the prospective clock started
+on 2026-09-14. Once calibration passes the acceptance bar, the claim advances to PROVISIONAL (published to digest, available to
+Upstox R6). See `docs/VALIDATION.md` for the full calibration outcome and next steps (r2 trials, governance items).
 
 ## How the Upstox integration is meant to work later (R6)
 

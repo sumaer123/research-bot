@@ -141,34 +141,62 @@ Capacity: median order 0.03% of ADV20, p90 0.20%; turnover 311%/yr; costs 163 bp
   ran; the engine bugs that earlier look found and fixed are listed in the design spec §4.2, not
   repeated here.
 
-## Rating Engine (Wave 3, Layer 1) — DIAGNOSTIC
+## Rating Engine (Wave 3, Layer 1) — DIAGNOSTIC, r1 calibration complete
 
 New institutional fundamental scoring engine: 6-pillar deterministic composite (Moat, Solvency,
 Earnings Quality, Growth, Management, Valuation) with sector profiles, red-flag override gates,
 Data Confidence Index, and intuitive CONVICTION_BUY / SPECULATIVE_BUY / HOLD / TRIM / SELL
 verdicts (no LLM in the compute path of any published number). Engine version **r1** (screener-sourced
-fundamentals, mock XBRL pending backfill) launches as DIAGNOSTIC pending calibration; acceptance bar
-in `eqr/rating/acceptance.py` (§6.1–6.2 of the Methodology Plan at
-`RESEARCH_BOT_SCORING_METHODOLOGY_PLAN.md`). Features:
+fundamentals, XBRL backfill pending) lives as DIAGNOSTIC; acceptance bar in `eqr/rating/acceptance.py` (§6.1–6.2
+of `RESEARCH_BOT_SCORING_METHODOLOGY_PLAN.md`).
+
+### Calibration outcome (r1, 2026-09-14)
+
+Protocol: 96 month-end signal dates 2017-06-30 → 2025-08-29; 1,208-name PIT universe; embargoed expanding folds
+2019–2024 (variant selected per fold on train IC; `quality_tilt` chosen every year); holdout 2024-09-30 → 2025-08
+evaluated once. Report and raw data: `data/reports/calibrate-r1-<timestamp>/`.
+
+**Acceptance bar result: 5 pass · 16 fail · 2 not evaluable → NOT VALIDATED**
+
+| Check | Result | Threshold | Status |
+|---|---|---|---|
+| Score rank IC (OOS folds) | −0.05, t −1.5 | ≥ 0.05, t ≥ 2 | FAIL |
+| Long-short BUY − SELL/TRIM (OOS) | −8 pp/yr | ≥ 6 pp | FAIL |
+| **MoS IC (36-month)** | **+0.09, t 2.6** | **≥ 0.03, t ≥ 1.5** | **PASS** |
+| **Holdout long-short (Sep-24 → Aug-25)** | **+4.4 pp** | **> 0** | **PASS** |
+| Decile monotonicity, tier ordering, hit rates, Brier, DCI informativeness, sector breadth, min tier share | — | — | FAIL |
+| Coverage neutrality (\|ρ(score, coverage)\| = 0.08), monthly transition 7% | — | ≤ 0.10, ≤ 25% | PASS |
+
+Anchors (same forward returns): momentum IC +0.053 (t 4.1), size IC +0.077 (t 3.7) — the return series is sound.
+Score IC by year: 2017 +0.16 · 2018 +0.15 · 2019 +0.09 · 2020 −0.01 · 2021 −0.10 · 2022 −0.06 · 2023 −0.10 · 2024 +0.10 · 2025 +0.08.
+The composite tracks the size regime (mcap IC +0.28/+0.39 in 2017–18, −0.18/−0.12 in 2020–21, +0.15/+0.17 in 2024–25):
+it is a large-cap-quality factor, and the 2020–2023 small-cap/junk rally sits inside the OOS folds. Only 0.3% of names
+reached CONVICTION_BUY and 0.9% SPECULATIVE_BUY (rules require MoS ≥ 20% with score ≥ 80/70), so the BUY tiers are too thin to test.
+
+### Live verdict distribution (2026-09-14, engine r1/base)
+
+1,208 names rated in 28 s: 1,085 RATED, 123 NO_RATING (coverage < 60%, P6 unknown, statements > 400d, or not in
+features universe). Verdict mix: TRIM 650 · HOLD 373 · SELL 55 · SPECULATIVE_BUY 7 · CONVICTION_BUY 0. Median margin of safety −38%.
+
+### Claim state & next steps
+
+- **DIAGNOSTIC** (step 1 of 4): nightly `rate --universe --publish` now appends to `rating_ledger`; the prospective clock starts;
+  ratings carry the DIAGNOSTIC label on all surfaces.
+- Six open governance items (`AS_RESTATED_FUNDAMENTALS`, `BENCH_PROXY`, `CONTROLS_NO_HISTORY` for forward-only flags, XBRL backfill pending, money-weighted returns XIRR-engine certified, Upstox advisor gate blocked by pre-existing unset `EQR_ADVISOR_TOKEN`) hold this at DIAGNOSTIC.
+- Three pre-registered r2 trials queued in Appendix D of `RESEARCH_BOT_SCORING_METHODOLOGY_PLAN.md`: size-neutral scoring, R3 threshold/BUY threshold review, momentum as a timing overlay.
+- Forward-only flags (pledge, insider, credit rating, audit, surveillance, adverse announcements) are UNKNOWN today; their components sit at the prior, and history starts accumulating now.
+
+### Features
 
 - **326 tests green** covering model, pillars, flags, confidence, decision matrix, manifest determinism.
-- **DB schema extended:** `ratings` table gains rule_id, profile, mos_base, fv_base/fv_bull/fv_bear, dci_band,
-  valuation_json, decision_json, price; `rating_ledger` gains mos_at_publish, dci_at_publish, verdict_prev.
-  Migration applied + verified live 2026-09-14; rows altered = 0.
-- **CLI:** `eqr metrics --as-of|--monthly-from [--symbols]` builds the fundamentals package;
-  `eqr rate --universe|--symbol [--as-of] [--variant] [--publish] [--calibrate]` runs the engine;
-  `eqr decision {symbol} [--md|--html|--telegram]` renders one-pagers.
-- **Nightly chain:** the Mac `com.eqr.fundamentals` service (Saturday) will chain `metrics` before the
-  nightly `rate --universe --publish` once calibration completes; prospective ledger appends at
-  publication (append-only, no rewrites).
-- Claim state: **DIAGNOSTIC** (step 1 of the ladder; r1 calibration pending calibration run on holdout
-  2024-09-01 → 2025-08). Six open governance items (`AS_RESTATED_FUNDAMENTALS`, `BENCH_PROXY`,
-  `CONTROLS_NO_HISTORY` for forward-only flags, XBRL backfill pending, money-weighted returns are XIRR-engine
-  certified before quote) keep this at DIAGNOSTIC until resolution.
+- **DB schema:** `ratings` table with rule_id, profile, mos_base, fv_base/fv_bull/fv_bear, dci_band, valuation_json, decision_json, price;
+  `rating_ledger` with mos_at_publish, dci_at_publish, verdict_prev. Migration verified live 2026-09-14; rows altered = 0.
+- **CLI:** `eqr rate --calibrate --engine r1` (writes `data/reports/calibrate-<engine>-<ts>/`, `rating_calibrations` row, `experiments/trials-RATING-r1.jsonl` entry; holds DuckDB lock ~25 min);
+  `eqr decision {symbol} [--fmt md|html|telegram]` renders one-pagers; web routes `/decision/{symbol}`, `/decision/{symbol}.md`, `/ratings`, `/ratings.csv`.
+- **Nightly chain:** `eqr metrics --monthly-from` (Saturday 02:00 IST) builds the 9-pillar fundamentals package, then `eqr rate --recompute --publish` appends to `rating_ledger`;
+  daily `rate --publish` (after `refresh` in the weekday 19:45 chain); both append-only, no rewrites.
 
-Methodology reference: `docs/superpowers/plans/2026-09-14-fundamentals-x10-plan.md` (approved design) and the
-new `RESEARCH_BOT_SCORING_METHODOLOGY_PLAN.md` (implementation architecture, all six pillars, decision rules,
-calibration protocol, test plan, manifest contracts).
+Methodology & decisions: `RESEARCH_BOT_SCORING_METHODOLOGY_PLAN.md` (§6 Verification & Backtesting, Appendix D calibration outcome, Appendix A–B design reasoning).
 
 ## Sleeve S — DIAGNOSTIC
 
