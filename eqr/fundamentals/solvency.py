@@ -52,6 +52,15 @@ def _add_nonfin_solvency(inp: Inputs, result: MetricSet) -> None:
                   note="net_debt_investments_proxy" if net_debt_val is not None and
                        not _has_xbrl_cash(inp) else ""))
 
+    # prior-FY net debt / EBITDA (DEBT_SPIKE input): borrowings - investments over the prior FY's operating profit
+    bor_p, inv_p, op_p = inp.borrowings(-2), inp.a("investments", -2), inp.op(-2)
+    if bor_p is not None and op_p is not None and op_p > 0:
+        nd_p = bor_p - (inv_p or 0.0) if bor_p > 0 else 0.0
+        result.add(ok("net_debt_ebitda_prev", nd_p / op_p, unit="ratio", note="prior FY, investments proxy"))
+    else:
+        result.add(unknown("net_debt_ebitda_prev", "prior FY inputs missing"))
+    result.add(ok("net_debt", net_debt_val, unit="crore"))
+
     # --- Net debt / FCF years
     fcf_median_3y = _fcf_median_3y(inp)
     if net_debt_val is not None and fcf_median_3y is not None:

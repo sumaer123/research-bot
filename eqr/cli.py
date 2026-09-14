@@ -442,12 +442,15 @@ def decision(symbol: str = typer.Argument(...),
     """Print the stock decision one-pager for the latest stored rating."""
     from .store import connect
     from .surfaces import report as rep
-    from .surfaces.queries import latest_rating
+    from .surfaces.queries import latest_rating, engine_claim_detail
     con = connect(read_only=True)
     try:
         r = latest_rating(con, symbol.upper())
         if r is None:
             raise typer.BadParameter(f"no rating stored for {symbol}; run `eqr rate` first")
+        r["claim_state"] = engine_claim_detail(con, r["engine_version"])["label"]
+        nm = con.execute("SELECT name FROM instruments WHERE symbol = ?", [symbol.upper()]).fetchone()
+        r["name"] = nm[0] if nm else ""
         feat = con.execute("SELECT * FROM features WHERE symbol = ? AND as_of = ?", [symbol.upper(), r["as_of"]]).df()
         feat = feat.iloc[0].to_dict() if len(feat) else {}
         text = {"md": rep.decision_onepager_md, "html": rep.decision_html}.get(fmt, lambda *a: rep.telegram_card(a[0]))(r, feat)

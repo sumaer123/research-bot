@@ -142,33 +142,43 @@ def previous_verdicts(con: duckdb.DuckDBPyConnection, as_of: date, engine: str, 
 def rate_universe(con: duckdb.DuckDBPyConnection, as_of: date, variant: str = DEFAULT_VARIANT,
                   engine: str = ENGINE_VERSION, symbols: Optional[list[str]] = None, store: bool = True,
                   recompute_metrics: bool = False, prev: Optional[dict[str, str]] = None,
-                  use_hysteresis: bool = True) -> list[RatingResult]:
-    """Rate every name in the features universe on as_of (or `symbols`)."""
-    inputs = load_inputs(con, as_of, symbols, with_xbrl=engine != "r1")
+                  use_hysteresis: bool = True, store_metrics: Optional[bool] = None,
+                  inputs: Optional[dict] = None, wide: Optional[pd.DataFrame] = None) -> list[RatingResult]:
+    """Rate every name in the features universe on as_of (or `symbols`). `inputs`/`wide` may be
+    passed by a caller that scores several variants on the same date."""
+    if inputs is None:
+        inputs = load_inputs(con, as_of, symbols, with_xbrl=engine != "r1")
     if not inputs:
         return []
     syms = list(inputs)
-    wide = pd.DataFrame()
-    if not recompute_metrics:
-        wide = load_metrics(con, as_of, syms)
-    if wide.empty or len(wide) < len(syms) * 0.9:
-        wide = build_metrics(con, as_of, syms, store=store, with_xbrl=engine != "r1")
+    if wide is None:
+        wide = pd.DataFrame()
+        if not recompute_metrics:
+            wide = load_metrics(con, as_of, syms)
+        if wide.empty or len(wide) < len(syms) * 0.9:
+            wide = build_metrics(con, as_of, syms, store=store if store_metrics is None else store_metrics,
+                                 with_xbrl=engine != "r1")
     if wide.empty:
         return []
     status_df: pd.DataFrame = wide.attrs.get("status", pd.DataFrame())
+    wide = wide.copy(deep=False); wide.attrs = {}                      # attrs are deep-copied on every access
     profile = pd.Series({s: inputs[s].profile for s in wide.index})
-    scores = component_scores(wide, groups=profile, profile_of=profile, engine=engine, variant=variant)
+    scores, priors = component_scores(wide, groups=profile, profile_of=profile, engine=engine, variant=variant)
+    score_rows = scores.to_dict("index")
+    raw_rows = wide.to_dict("index")
+    status_rows = status_df.to_dict("index") if not status_df.empty else {}
     prev = prev if prev is not None else (previous_verdicts(con, as_of, engine, variant) if use_hysteresis else {})
     source = "xbrl" if any(inputs[s].xbrl for s in syms[:50]) else "screener"
     results: list[RatingResult] = []
     for sym in wide.index:
         inp = inputs[sym]
-        metrics = {k: _f(v) for k, v in wide.loc[sym].items()}
-        st = {k: (status_df.at[sym, k] if (not status_df.empty and k in status_df.columns and sym in status_df.index
-                                           and isinstance(status_df.at[sym, k], str)) else (OK if metrics.get(k) is not None else UNKNOWN))
+        metrics = {k: _f(v) for k, v in raw_rows[sym].items()}
+        srow = status_rows.get(sym, {})
+        st = {k: (srow[k] if isinstance(srow.get(k), str) else (OK if metrics.get(k) is not None else UNKNOWN))
               for k in metrics}
-        pillars = pillar_scores_for(sym, scores, wide, inp.profile, engine, variant,
-                                    min_known_share=THRESHOLDS["pillar_known_share"])
+        pillars = pillar_scores_for(sym, scores, wide, inp.profile, engine, variant, priors=priors,
+                                    min_known_share=THRESHOLDS["pillar_known_share"],
+                                    score_row=score_rows[sym], raw_row=raw_rows[sym])
         try:
             r = rate_symbol(sym, as_of, metrics, st, pillars, inp.profile, inp.feat, inp.price, inp.notes,
                             prev_verdict=prev.get(sym), variant=variant, engine=engine, source=source)

@@ -48,7 +48,7 @@ def test_weights_sum_to_one_for_every_profile_and_variant():
         for v in sector.VARIANTS:
             w = sector.profile_weights(p, v)
             assert set(w) == set(sector.PILLARS)
-            assert abs(sum(w.values()) - 1.0) < 1e-9, (p, v, w)
+            assert abs(sum(w.values()) - 1.0) < 1e-5, (p, v, w)
             assert all(x >= 0 for x in w.values())
 
 
@@ -97,20 +97,20 @@ def _frame(n=20, seed=1):
 
 def test_component_scores_pct_map_binary_and_priors():
     raw, prof = _frame()
-    sc = component_scores(raw, prof, prof, "r1", "base")
+    sc, priors = component_scores(raw, prof, prof, "r1", "base")
     assert sc["roce_median_10y"].between(0, 100).all()
     assert sc["net_debt_ebitda"].between(0, 100).all()
     assert (sc["adverse_events_90d_clean"] == 100).all()
     # a metric nobody has is all-NaN with an empty prior
     assert sc["gnpa_pct"].isna().all()
-    assert sc.attrs["priors"]["roce_median_10y"]["GENERAL"] == pytest.approx(50, abs=5)
+    assert priors["roce_median_10y"]["GENERAL"] == pytest.approx(50, abs=5)
 
 
 def test_pillar_shrinks_unknown_to_prior_and_never_renormalises():
     raw, prof = _frame()
-    sc = component_scores(raw, prof, prof, "r1", "base")
+    sc, priors = component_scores(raw, prof, prof, "r1", "base")
     sym = "S00"
-    p_full = pillar_scores_for(sym, sc, raw, "GENERAL", "r1", "base")
+    p_full = pillar_scores_for(sym, sc, raw, "GENERAL", "r1", "base", priors=priors)
     p2 = p_full["P2_BALANCE"]
     known = [c for c in p2.components if c.status == OK]
     unknown = [c for c in p2.components if c.status == UNKNOWN]
@@ -122,8 +122,8 @@ def test_pillar_shrinks_unknown_to_prior_and_never_renormalises():
     # remove one known component -> score moves toward the prior by exactly w*(c - prior)/total
     c0 = known[0]
     raw2 = raw.copy(); raw2.loc[sym, c0.name] = np.nan
-    sc2 = component_scores(raw2, prof, prof, "r1", "base")
-    p2b = pillar_scores_for(sym, sc2, raw2, "GENERAL", "r1", "base")["P2_BALANCE"]
+    sc2, priors2 = component_scores(raw2, prof, prof, "r1", "base")
+    p2b = pillar_scores_for(sym, sc2, raw2, "GENERAL", "r1", "base", priors=priors2)["P2_BALANCE"]
     prior2 = next(c.prior for c in p2b.components if c.name == c0.name)
     assert p2b.score == pytest.approx(p2.score - c0.weight * (c0.score - prior2) / p2.weight_total, abs=1e-6)
     assert p2b.weight_known == pytest.approx(p2.weight_known - c0.weight)
@@ -131,8 +131,8 @@ def test_pillar_shrinks_unknown_to_prior_and_never_renormalises():
 
 def test_pillar_unknown_when_under_half_known():
     raw, prof = _frame()
-    sc = component_scores(raw, prof, prof, "r1", "base")
-    p = pillar_scores_for("S00", sc, raw, "GENERAL", "r1", "base")
+    sc, priors = component_scores(raw, prof, prof, "r1", "base")
+    p = pillar_scores_for("S00", sc, raw, "GENERAL", "r1", "base", priors=priors)
     # P1 only has spread_median_5y (w2) + roce_median_10y (w1) known of ~14 weight -> UNKNOWN
     assert p["P1_MOAT"].status == UNKNOWN
     assert p["P1_MOAT"].score is not None
@@ -141,8 +141,8 @@ def test_pillar_unknown_when_under_half_known():
 
 def test_composite_is_weighted_mean_over_all_pillars():
     raw, prof = _frame()
-    sc = component_scores(raw, prof, prof, "r1", "base")
-    p = pillar_scores_for("S01", sc, raw, "GENERAL", "r1", "base")
+    sc, priors = component_scores(raw, prof, prof, "r1", "base")
+    p = pillar_scores_for("S01", sc, raw, "GENERAL", "r1", "base", priors=priors)
     w = sector.profile_weights("GENERAL")
     S = composite(p, w)
     assert S == pytest.approx(sum(w[k] * p[k].score for k in w))
@@ -152,11 +152,11 @@ def test_financial_profile_never_gets_nonfinancial_components_and_vice_versa():
     raw, prof = _frame()
     prof2 = prof.copy(); prof2["S00"] = "BANK"
     raw.loc["S00", "gnpa_pct"] = 2.0
-    sc = component_scores(raw, prof2, prof2, "r1", "base")
-    bank = pillar_scores_for("S00", sc, raw, "BANK", "r1", "base")
+    sc, priors = component_scores(raw, prof2, prof2, "r1", "base")
+    bank = pillar_scores_for("S00", sc, raw, "BANK", "r1", "base", priors=priors)
     names = {c.name for pl in bank.values() for c in pl.components}
     assert "gnpa_pct" in names and "net_debt_ebitda" not in names and "beneish_level" not in names
-    gen = pillar_scores_for("S01", sc, raw, "GENERAL", "r1", "base")
+    gen = pillar_scores_for("S01", sc, raw, "GENERAL", "r1", "base", priors=priors)
     names = {c.name for pl in gen.values() for c in pl.components}
     assert "net_debt_ebitda" in names and "gnpa_pct" not in names and "cet1_pct" not in names
 

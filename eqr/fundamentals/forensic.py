@@ -76,6 +76,7 @@ def compute(inp: Inputs, ctx: dict | None = None) -> MetricSet:
 
     # Other income and tax metrics - all profiles
     out.add(_other_income_share(inp))
+    out.add(_other_income_share_prev(inp))
     out.add(_cash_tax_gap(inp))
 
     # Capital working items - non-financial only
@@ -348,6 +349,14 @@ def _other_income_share(inp: Inputs) -> Metric:
     if oi is None or pbt is None or pbt <= 0:
         return unknown("other_income_share", "missing OI or PBT ≤ 0")
     return ok("other_income_share", oi / pbt, inputs_as_of=inp.latest_period())
+
+
+def _other_income_share_prev(inp: Inputs) -> Metric:
+    """Prior fiscal year's other_income / PBT (OTHER_INCOME_DEPENDENCE needs two FYs)."""
+    oi, pbt = inp.a("other_income", -2), inp.a("profit_before_tax", -2)
+    if oi is None or pbt is None or pbt <= 0:
+        return unknown("other_income_share_prev", "missing prior-FY OI or PBT ≤ 0")
+    return ok("other_income_share_prev", oi / pbt)
 
 
 def _cash_tax_gap(inp: Inputs) -> Metric:

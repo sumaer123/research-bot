@@ -215,6 +215,17 @@ def engine_claim_state(con, engine_version: str) -> str:
     return ClaimState.DIAGNOSTIC.value
 
 
+def engine_claim_detail(con, engine_version: str) -> dict:
+    """Claim state plus the latest calibration verdict, run id and report path (for the one-pager header)."""
+    row = con.execute("SELECT run_id, verdict, report_path, created_at FROM rating_calibrations WHERE engine_version = ? "
+                      "ORDER BY created_at DESC LIMIT 1", [engine_version]).fetchone()
+    state = engine_claim_state(con, engine_version)
+    if not row:
+        return {"state": state, "label": f"{state} (not yet calibrated)", "verdict": None, "run_id": None, "report_path": None}
+    return {"state": state, "label": f"{state} (calibration {row[1]}, {row[0]})", "verdict": row[1], "run_id": row[0],
+            "report_path": row[2], "created_at": str(row[3])}
+
+
 def advisor_evidence(con, symbol: str) -> dict:
     inst = con.execute("SELECT name, industry FROM instruments WHERE symbol = ?", [symbol]).fetchone()
     if not inst:

@@ -46,7 +46,7 @@ def test_latest_rating_query(tmp_db):
         "confidence_band": "MED",
         "coverage": 0.88,
         "pillars_json": json.dumps({
-            "moat_quality": {"score": 75, "coverage": 0.9, "weight_known": 0.2, "components": []},
+            "P1_MOAT": {"score": 75, "coverage": 0.9, "weight_known": 0.2, "components": []},
             "balance_sheet": {"score": 68, "coverage": 0.85, "weight_known": 0.15, "components": []}
         }),
         "gates_json": json.dumps([]),
@@ -75,7 +75,7 @@ def test_latest_rating_query(tmp_db):
     assert rating["score"] == 65.5
     assert rating["confidence"] == 0.75
     assert rating["dci_band"] == "MED"
-    assert rating["pillars"]["moat_quality"]["score"] == 75
+    assert rating["pillars"]["P1_MOAT"]["score"] == 75
     assert rating["gates"] == []
     assert rating["decision"]["verdict"] == "HOLD"
 
@@ -214,7 +214,7 @@ def test_decision_onepager_md_rendering(tmp_db):
         "fv_bull": 2350.0,
         "fv_bear": 1420.0,
         "pillars": {
-            "moat_quality": {
+            "P1_MOAT": {
                 "score": 82,
                 "coverage": 0.9,
                 "weight_known": 0.2,
@@ -230,12 +230,12 @@ def test_decision_onepager_md_rendering(tmp_db):
     }
 
     md = decision_onepager_md(rating_data)
-    assert "CONVICTION_BUY" in md
+    assert "CONVICTION BUY" in md
     assert "TestCorp" in md
     assert "84" in md
     assert "27%" in md
     assert "1,910" in md  # Formatted with comma
-    assert "moat_quality" in md
+    assert "Moat & quality" in md
     assert "R5" in md
 
 
@@ -254,7 +254,7 @@ def test_telegram_card_rendering(tmp_db):
     }
 
     card = telegram_card(rating_data)
-    lines = card.split("<br>")
+    lines = card.split("\n")
     assert len(lines) == 5
     assert "HOLD" in lines[0]
     assert "TESTCORP" in lines[0]

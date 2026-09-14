@@ -574,3 +574,58 @@ Everything below reuses `eqr/validate/` conventions: PIT month-end signal dates,
 | Qualitative pillar 0.05 in the default engine | LLM grades only inside the separately calibrated `with_qual` variant; deterministic growth catalyst | Final Plan doctrine "LLM output never moves a deterministic rating" |
 | Valuation = yields + bands + growth gap | Adds six-model FV triangulation and MoS | Margin of safety is the decision axis |
 | Confidence formula | Data Confidence Index with source, dispersion and coverage factors; demotes conviction | Score/confidence separation made operational |
+
+## Appendix C — Implementation record (2026-09-14, r1 shipped)
+
+What was built the same day, where it deviates from §2–§5 above, and why. Every deviation is deterministic and lives in code that the tests pin.
+
+| Area | As built | Deviation from the plan text | Why |
+|---|---|---|---|
+| Fair-value triangulation | `fv_base` = weighted median of the central models only (DCF base 0.40 / EV-EBITDA 0.35 / P-FCF 0.25; CYCLICAL 0.20 / 0.55 / 0.25; financials justified P/B 0.70 / DDM 0.30). EPV is the explicit **bear anchor** (`fv_bear = min(central models, DCF bear, EPV)`) and is not inside the median. A profile with a single available model (an NBFC without a 30% payout) takes that model as `fv_base` with dispersion `None`. | §2 P6 listed EPV with a 0.25 weight inside the base set | With EPV (no growth) inside the median, the median of four models fell into the lower half for almost every name; the plan already called EPV "the bear anchor" |
+| Valuation dispersion | Measured across the central models (EPV excluded) | §3.4 said "across available models" | Same reason: the no-growth anchor is meant to disagree |
+| Bank NIM / cost-to-income | `nim_pct` = (interest earned − interest expense) / average total assets; `cost_to_income` = expenses / (NII + other income) | §2 P1 named screener `financing_margin_pct` as the r1 NIM | `financing_margin_pct` is financing profit / revenue and is deeply negative for consolidated banks; the NII/assets proxy is a NIM |
+| Beneish in r1 | Computed with 5 real components + 2 proxies (GMI from OPM, AQI from the asset mix); `beneish_proxies=2` recorded | as §2 P3 | — |
+| `no_valuation` variant | Added as a calibration-only diagnostic (P6 weight 0, other pillars rescaled); never publishable | §6.2 asked for it; §3.2 listed three variants | The double-count check needs a concrete variant |
+| Unmapped industry | Falls to GENERAL with the `profile_unmapped` name flag (DCI ×0.90), not NO_RATING | §3.2 said NO_RATING | A new NSE industry string must not blank ratings overnight; the flag is visible on the one-pager and the test still asserts every live string is mapped |
+| Metrics persistence | The nightly job stores only the latest `fund_metrics` slice; the calibration recomputes each month-end in memory (`store_metrics=False`) | §5 implied a stored monthly history | 96 month-ends × 1,200 names × 137 long rows ≈ 16M rows; `eqr metrics --monthly-from` remains available when the history is wanted |
+| Forward returns | Maturity is anchored on the last session that actually has EQ prices, with a 5-session delisting grace (as the backtest) | — | Some `trading_days` rows have no bhavcopy (2026-03-26 is one); without the anchor every name looked delisted |
+| Performance | Component and pillar scoring read row dicts; no `DataFrame.attrs` on frames used in the scoring loop | — | pandas deep-copies `attrs` on every column access; the first universe run took minutes, now 28 s for 1,208 names |
+
+### Observed on the live universe (2026-09-11, engine r1/base)
+
+- 1,208 names rated in 28 s; 1,085 RATED, 123 NO_RATING (coverage < 60%, P6 unknown, statements > 400 days, or not in the features universe).
+- Verdict mix: TRIM 650 · HOLD 373 · SELL 55 · SPECULATIVE_BUY 7 · CONVICTION_BUY 0. Median margin of safety −38% (banks +54%, NBFC +6%, IT −16%, cyclicals −17%, general −50%, pharma −52%). With a median universe P/E near 30 and a median WACC near 11.5%, the intrinsic models read most of the market as expensive, and §4.1 R3 (MoS ≤ −25% → TRIM) then dominates. This is the honest output of the rules as specified; the R3 threshold and the model weights are the levers, and §6.2's MoS-IC check is what decides whether the margin of safety earns its place.
+- Median DCI 0.60 (MED): the 0.90 screener source factor and the 0.85 dispersion factor cap most names below the HIGH band until XBRL (r2) lands; INFY reaches HIGH (0.85).
+- Most common flags: WC_DAYS_UP_20 (355), BENEISH_1Y (327), TAX_GAP (307), BENEISH_WATCH (273), OTHER_INCOME_25_50 (161); HARD flags fired on 38 names (SOLVENCY_BREACH, FORENSIC_CASH_DIVERGENCE).
+
+### Known r1 limitations (carry to r2)
+
+1. `reserves_leakage_5y` counts buybacks as leakage (screener has no buyback line); IT names with large buybacks score 0 on it. Net out capital reductions once XBRL `DividendsPaid` / equity changes are mapped.
+2. `fundamental_growth` = reinvestment × ROIIC understates growth for high-ROIC, low-reinvestment franchises (INFY reads −1.3%); the DCF base growth then leans on the clip floor. Consider a blended g1 (fundamental growth vs 5y sales CAGR) in r2, pre-registered.
+3. Bank `gnpa_pct` is available for only 54 screener symbols (quarterly); most banks' P2 shrinks to the prior until XBRL bank KPIs arrive.
+4. Event-driven flags (pledge, insider, credit rating, audit, surveillance, adverse announcements) are forward-only and UNKNOWN today; their components sit at the prior.
+5. Market cap in `features` is still not split-invariant for the sleeves (Wave 2); Pillar 6 uses its own split-invariant `mcap_series`.
+
+## Appendix D — First calibration of r1 (2026-09-14): NOT VALIDATED
+
+Protocol as §6.1: 96 month-end signal dates 2017-06-30 → 2025-08-29, 1 208-name PIT universe, 12-month adjusted forward excess return over NIFTY 500 + 1.3%/yr; six embargoed expanding folds 2019–2024 (variant chosen per fold on train IC: `quality_tilt` every year); holdout 2024-09-30 → 2025-08 evaluated once with `value_tilt`; raw (no-hysteresis) verdicts judged. Report and history: `data/reports/calibrate-r1-<ts>/`, row in `rating_calibrations`, entry in `experiments/trials-RATING-r1.jsonl`.
+
+| Check | Value | Bar | Result |
+|---|---|---|---|
+| Score rank IC (OOS folds) | −0.05, t −1.5 | ≥ 0.05, t ≥ 2 | FAIL |
+| Long-short BUY − SELL/TRIM (OOS) | −8 pp/yr | ≥ 6 pp | FAIL |
+| MoS IC (36 m) | **+0.09, t 2.6** | ≥ 0.03, t ≥ 1.5 | PASS |
+| Holdout long-short (Sep-24 → Aug-25) | **+4.4 pp** | > 0 | PASS |
+| Decile monotonicity, tier ordering, hit rates, Brier, DCI-informative, sector breadth, min tier share | — | — | FAIL |
+| Coverage neutrality (\|ρ(score, coverage)\| = 0.08), transition rate 7% | — | ≤ 0.10, ≤ 25% | PASS |
+
+**5 pass · 16 fail · 2 not evaluable → NOT VALIDATED.** Claim state: DIAGNOSTIC on every surface; the nightly rating and the ledger still run (the prospective clock starts now), and the Upstox advisor block earns nothing from a DIAGNOSTIC engine.
+
+What the anchors say (same forward returns): momentum IC +0.053 (t 4.1) and size IC +0.077 (t 3.7) over the full period, so the return series is sound. The score's IC by year: 2017 +0.16 · 2018 +0.15 · 2019 +0.09 · 2020 −0.01 · 2021 −0.10 · 2022 −0.06 · 2023 −0.10 · 2024 +0.10 · 2025 +0.08. It tracks the size regime exactly (mcap IC +0.28/+0.39 in 2017–18, −0.18/−0.12 in 2020–21, +0.15/+0.17 in 2024–25): the composite is a large-cap-quality factor, and the 2020–2023 small-cap/junk rally is inside the out-of-sample folds. The SELL tier (score < 35 or a HARD flag) returned +18% excess in those folds — low-quality names rallied hardest. Only 0.3% of names reached CONVICTION_BUY and 0.9% SPECULATIVE_BUY (rules require MoS ≥ 20% with score ≥ 80/70), so the BUY tiers are too thin to test.
+
+Decisions this leaves with Sumaer (each is a pre-registered r2 trial, never a silent tune):
+
+1. **Size-neutral scoring.** Percentile components within (profile × size tercile) or an explicit size control in the calibration regression, so the engine does not re-price the large-cap premium.
+2. **R3 threshold and BUY thresholds.** With intrinsic models reading a 30× P/E market as expensive, MoS ≤ −25% → TRIM covers 56% of names and MoS ≥ 20% is rare; either widen the MoS bands or express MoS relative to the profile's median MoS on the date (cross-sectional) while keeping the absolute number on the one-pager.
+3. **Momentum as a timing overlay in the decision (not the score),** given its +0.05 IC here and its validated role in Sleeve L; e.g. a BUY needs 12-1m momentum above the profile median.
+4. **Wait for r2 (XBRL cash, receivables, full Beneish, bank KPIs)** before re-judging the forensic and balance-sheet pillars; the forward-only flags only start accumulating history now.

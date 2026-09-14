@@ -238,11 +238,13 @@ def expected_return_band(ey: float, g_sust: float, pe_now: float, pe_median_10y:
 
 # --- compute function ---
 
+# fair-value triangulation weights per profile. EPV (no-growth earnings power) is the explicit
+# BEAR anchor (fv_bear = min(models, EPV)) and is NOT inside the central median.
 MODEL_WEIGHTS = {
-    "GENERAL":     {"model_dcf_base": 0.30, "model_ev_ebitda": 0.25, "model_p_fcf": 0.20, "model_epv": 0.25},
-    "IT_SERVICES": {"model_dcf_base": 0.30, "model_ev_ebitda": 0.25, "model_p_fcf": 0.20, "model_epv": 0.25},
-    "PHARMA":      {"model_dcf_base": 0.30, "model_ev_ebitda": 0.25, "model_p_fcf": 0.20, "model_epv": 0.25},
-    "CYCLICAL":    {"model_dcf_base": 0.15, "model_ev_ebitda": 0.40, "model_p_fcf": 0.20, "model_epv": 0.25},
+    "GENERAL":     {"model_dcf_base": 0.40, "model_ev_ebitda": 0.35, "model_p_fcf": 0.25},
+    "IT_SERVICES": {"model_dcf_base": 0.40, "model_ev_ebitda": 0.35, "model_p_fcf": 0.25},
+    "PHARMA":      {"model_dcf_base": 0.40, "model_ev_ebitda": 0.35, "model_p_fcf": 0.25},
+    "CYCLICAL":    {"model_dcf_base": 0.20, "model_ev_ebitda": 0.55, "model_p_fcf": 0.25},
     "BANK":        {"model_justified_pb": 0.70, "model_ddm": 0.30},
     "NBFC_FIN":    {"model_justified_pb": 0.70, "model_ddm": 0.30},
 }
@@ -488,10 +490,10 @@ def compute(inp: Inputs, ctx: Optional[dict] = None) -> MetricSet:
     elif len(central) == 1 and len(avail) >= 2:
         disp = None
     if fv_base is not None and not inp.is_financial:
-        # bear anchor = min(models, EPV); bull = max incl. dcf bull
-        cands = [v for k, v in models.items() if v is not None and k != "model_dcf_bear"]
-        fv_bull = max(cands) if cands else fv_bull
-        lows = [v for k, v in models.items() if v is not None and k not in ("model_dcf_bull",)]
+        # bear anchor = min(central models, dcf bear, EPV); bull = max(central models, dcf bull)
+        highs = [v for k, v in models.items() if v is not None and k not in ("model_dcf_bear", "model_epv")]
+        fv_bull = max(highs) if highs else fv_bull
+        lows = [v for k, v in models.items() if v is not None and k != "model_dcf_bull"]
         fv_bear = min(lows) if lows else fv_bear
     ms.add(ok("fv_base", fv_base, unit="rupees"))
     ms.add(ok("fv_bull", fv_bull, unit="rupees"))

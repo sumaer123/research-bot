@@ -78,8 +78,10 @@ VARIANT_DELTAS: dict[str, dict[str, float]] = {
     "quality_tilt": {"P1_MOAT": +0.05, "P3_EARNINGS": +0.05, "P6_VALUATION": -0.10},
     "value_tilt": {"P6_VALUATION": +0.10, "P1_MOAT": -0.05, "P4_GROWTH": -0.05},
     "with_qual": {},          # r3: same weights, LLM grades allowed inside pillars (never the published default)
+    "no_valuation": {},       # calibration diagnostic only: P6 removed, others rescaled (double-count check)
 }
 VARIANTS = tuple(VARIANT_DELTAS)
+PUBLISHABLE_VARIANTS = ("base", "quality_tilt", "value_tilt")
 
 
 def profile_weights(profile: str, variant: str = "base") -> dict[str, float]:
@@ -88,6 +90,10 @@ def profile_weights(profile: str, variant: str = "base") -> dict[str, float]:
     if variant not in VARIANT_DELTAS:
         raise KeyError(f"unknown variant {variant}")
     w = dict(BASE_WEIGHTS[profile])
+    if variant == "no_valuation":
+        w["P6_VALUATION"] = 0.0
+        tot = sum(w.values())
+        return {k: round(v / tot, 6) for k, v in w.items()}
     for k, d in VARIANT_DELTAS[variant].items():
         w[k] = round(w[k] + d, 4)
     if any(v < 0 for v in w.values()):

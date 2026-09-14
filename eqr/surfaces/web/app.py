@@ -80,6 +80,7 @@ def decision_markdown(symbol: str, con=Depends(db)):
     feat_dict = {"mom_12_1": feat[0], "dist_52w_high": feat[1], "dma200_ratio": feat[2]} if feat else {}
 
     rating["name"] = name
+    rating["claim_state"] = q.engine_claim_detail(con, rating["engine_version"])["label"]
     md_text = decision_onepager_md(rating, feat=feat_dict)
     return HTMLResponse(content=md_text, media_type="text/markdown")
 
@@ -98,6 +99,7 @@ def decision(request: Request, symbol: str, con=Depends(db)):
     feat_dict = {"mom_12_1": feat[0], "dist_52w_high": feat[1], "dma200_ratio": feat[2]} if feat else {}
 
     rating["name"] = name
+    rating["claim_state"] = q.engine_claim_detail(con, rating["engine_version"])["label"]
     md_text = decision_onepager_md(rating, feat=feat_dict)
     html_body = md_render(md_text)
     return templates.TemplateResponse(request, "report.html", {"run_id": symbol.upper(), "body": html_body})

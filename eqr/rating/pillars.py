@@ -146,15 +146,19 @@ def map_score(x: float, pts: tuple[tuple[float, float], ...]) -> float:
 
 
 def component_scores(raw: pd.DataFrame, groups: pd.Series, profile_of: pd.Series, engine: str, variant: str,
-                     min_group: int = 8) -> pd.DataFrame:
+                     min_group: int = 8) -> tuple[pd.DataFrame, dict[str, dict[str, float]]]:
     """Cross-sectional scoring of every component for every symbol.
 
     raw: DataFrame index=symbol, columns=metric names (NaN = UNKNOWN / NA).
     groups: Series symbol -> percentile group (profile). profile_of: symbol -> profile.
     Returns DataFrame index=symbol with one column per component holding the 0..100 score
-    (NaN when the component does not apply or is unknown); priors are attached in `.attrs`."""
+    (NaN when the component does not apply or is unknown) and the priors dict
+    (component -> {profile: prior score, "__universe__": prior}). Frames carry NO attrs: pandas
+    deep-copies attrs on every column access, which made a 1,200-name run take minutes."""
     from ..fundamentals.base import percentile_grouped
+    raw = raw.copy(deep=False); raw.attrs = {}
     out = pd.DataFrame(index=raw.index, dtype=float)
+    applies_cache: dict[str, bool] = {}
     priors: dict[str, dict[str, float]] = {}
     for c in COMPONENTS:
         col = c.name
@@ -163,7 +167,7 @@ def component_scores(raw: pd.DataFrame, groups: pd.Series, profile_of: pd.Series
             priors[col] = {}
             continue
         s = raw[col].astype(float)
-        mask_applies = profile_of.map(lambda p: c.applies(p, engine, variant)).astype(bool)
+        mask_applies = profile_of.map(lambda p: c.applies(p, engine, variant)).astype(bool).reindex(raw.index).fillna(False)
         s = s.where(mask_applies)
         if c.kind == "pct":
             sc = percentile_grouped(s * c.sign, groups, min_group=min_group)
@@ -183,14 +187,18 @@ def component_scores(raw: pd.DataFrame, groups: pd.Series, profile_of: pd.Series
                 pri[str(g)] = float(k.median()) if len(k) >= min_group else uni
             pri["__universe__"] = uni
         priors[col] = pri
-    out.attrs["priors"] = priors
-    return out
+    return out, priors
 
 
 def pillar_scores_for(symbol: str, scores: pd.DataFrame, raw: pd.DataFrame, profile: str, engine: str,
-                      variant: str, min_known_share: float = 0.5, default_prior: float = 50.0) -> dict[str, PillarScore]:
-    """Assemble the six PillarScore objects for one symbol from the cross-sectional score frame."""
-    priors = scores.attrs.get("priors", {})
+                      variant: str, priors: Optional[dict] = None, min_known_share: float = 0.5,
+                      default_prior: float = 50.0, score_row: Optional[dict] = None,
+                      raw_row: Optional[dict] = None) -> dict[str, PillarScore]:
+    """Assemble the six PillarScore objects for one symbol from the cross-sectional score frame
+    (pass `score_row`/`raw_row` dicts to avoid per-cell frame access in a universe loop)."""
+    priors = priors or {}
+    score_row = score_row if score_row is not None else scores.loc[symbol].to_dict()
+    raw_row = raw_row if raw_row is not None else raw.loc[symbol].to_dict()
     comps = applicable(profile, engine, variant)
     pillars: dict[str, PillarScore] = {}
     for pname in PILLARS:
@@ -200,8 +208,10 @@ def pillar_scores_for(symbol: str, scores: pd.DataFrame, raw: pd.DataFrame, prof
         for c in comps:
             if c.pillar != pname:
                 continue
-            sc = scores.at[symbol, c.name] if c.name in scores.columns else np.nan
-            rv = raw.at[symbol, c.name] if c.name in raw.columns else np.nan
+            sc = score_row.get(c.name, np.nan)
+            rv = raw_row.get(c.name, np.nan)
+            sc = np.nan if sc is None else sc
+            rv = np.nan if rv is None else rv
             pri = priors.get(c.name, {})
             prior = pri.get(profile, pri.get("__universe__", default_prior)) if pri else default_prior
             w_total += c.weight

@@ -311,7 +311,7 @@ def evaluate_flags(
             "shareholding", promoter_chg
         ))
 
-    # MOAT_EROSION: spread_ttm < 0 after spread_median_5y > 5%, or OPM down > 5pp over 3y
+    # MOAT_EROSION: spread_ttm < 0 after spread_median_5y > 5%, or OPM down > 500 bp over 3y with sales growing
     spread_ttm = m("spread_ttm")
     spread_median = m("spread_median_5y")
     opm_chg = m("opm_chg_3y")
@@ -322,10 +322,10 @@ def evaluate_flags(
             f"spread TTM {spread_ttm:.2%} < 0, median 5y {spread_median:.2%} > 5%",
             "statements", spread_ttm
         ))
-    elif opm_chg is not None and opm_chg < -5.0:  # -5 = -500bp
+    elif opm_chg is not None and opm_chg < -5.0 and m("sales_growth_3y_pos") == 1.0:   # -500 bp with sales growing
         flags.append(RedFlag(
             "MOAT_EROSION", "SOFT", "HOLD",
-            f"OPM down {opm_chg:.1f} pp over 3y",
+            f"OPM down {opm_chg:.1f} pp over 3y while sales grew",
             "statements", opm_chg
         ))
 

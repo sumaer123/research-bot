@@ -61,6 +61,11 @@ def _add_nonfin_moat(inp: Inputs, result: MetricSet) -> None:
     # --- Operating margin metrics
     opm_8y_median, opm_8y_cv = _opm_median_8y(inp)
     result.add(ok("opm_median_8y", opm_8y_median, unit="ratio"))
+    # OPM change over 3 fiscal years in percentage points (MOAT_EROSION input)
+    _s0, _s3, _o0, _o3 = inp.sales(-1), inp.sales(-4), inp.op(-1), inp.op(-4)
+    _opm_chg = ((_o0 / _s0) - (_o3 / _s3)) * 100 if _s0 and _s3 and _s0 > 0 and _s3 > 0 and _o0 is not None and _o3 is not None else None
+    result.add(ok("opm_chg_3y", _opm_chg, unit="pp", note="OPM latest FY minus 3 FYs earlier"))
+    result.add(ok("sales_growth_3y_pos", 1.0 if (_s0 and _s3 and _s0 > _s3) else (0.0 if _s0 and _s3 else None), unit="binary"))
     result.add(ok("opm_cv_8y", opm_8y_cv, unit="ratio"))
 
     # --- Gross margin metrics (r2 XBRL-only)
