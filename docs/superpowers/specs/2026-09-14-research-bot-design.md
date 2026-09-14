@@ -279,10 +279,13 @@ boom years 2021 and 2023 carry much of the OOS excess; the fundamentals survivor
 above; and the base configuration's full-period result was seen once before the
 protocol ran (engine bugs found and fixed in that pass are listed in 4.2).
 
-Sleeve S: NOT VALIDATED. OOS Sharpe −0.17, IR −0.87, DSR p = 0.84; turnover ~2,000%/yr
-costs 1,160–1,350 bps/yr. The weekly design churns the whole book every week; the next
-pre-registered experiment is a hold-period discipline (minimum four weeks, exit on stop or
-rank beyond 3N), not a signal change.
+Sleeve S: NOT VALIDATED. OOS Sharpe −0.22, IR −0.92, DSR p = 0.86; turnover ~2,000%/yr,
+costs ~1,180 bps/yr. The weekly design churns the whole book every week. One exploratory
+(post-hoc, NOT validated) run of a hold-period rule — minimum 20 sessions, hold while
+inside 3N, no trims — over 2019→2026 moved the N=20 flow-tilt variant from Sharpe 0.01 to
+0.61 and turnover from 2,071% to 926%, but only matched the index (CAGR 15.3% vs 14.0%,
+IR 0.06) with 469 bps/yr of costs. Next pre-registered experiment: 8–12 week holds and a
+signal that survives the cost line; until then Sleeve S is a diagnostic list only.
 
 Both reports live under `data/reports/validate-*/` and in the `backtests` table.
 

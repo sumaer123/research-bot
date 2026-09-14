@@ -228,7 +228,8 @@ def run_backtest(con: duckdb.DuckDBPyConnection, cfg: BacktestConfig, panel: Opt
             regime, exposure = regime_at(reg, as_of)
             sc = score(feat, sl)
             allow_new = not (sl.regime_gate and regime == "RISK_OFF")
-            chosen = select(sc, list(pos.keys()), sl, allow_new=allow_new)
+            locked = {s_ for s_, p_ in pos.items() if i - p_["entry_i"] < sl.min_hold_sessions}
+            chosen = select(sc, list(pos.keys()), sl, allow_new=allow_new, locked=locked)
             w = inverse_vol_weights(chosen, feat["vol_60"], feat["industry"], exposure, sl.cap_name, sl.cap_industry)
             pending_target = w
             pending_adv = feat["adv20_inr"].reindex(chosen).to_dict()

@@ -37,6 +37,7 @@ class SleeveConfig:
     regime_gate: bool = False                   # S: no new entries when RISK_OFF
     cap_name: float = 0.05
     cap_industry: float = 0.25
+    min_hold_sessions: int = 0                  # a new position cannot be rotated out before this (stops still fire)
 
     @staticmethod
     def L(top_n: int = 30, variant: str = "base") -> "SleeveConfig":
@@ -93,12 +94,16 @@ def score(feat: pd.DataFrame, cfg: SleeveConfig) -> pd.Series:
     return s.where(eligible(feat, cfg))
 
 
-def select(scores: pd.Series, prev: list[str], cfg: SleeveConfig, allow_new: bool = True) -> list[str]:
-    """Top-N with hysteresis: keep previous holdings still ranked <= hold_until_rank,
-    fill the remainder with the best new names (unless allow_new is False)."""
+def select(scores: pd.Series, prev: list[str], cfg: SleeveConfig, allow_new: bool = True,
+           locked: Optional[set] = None) -> list[str]:
+    """Top-N with hysteresis: keep previous holdings still ranked <= hold_until_rank (and
+    every `locked` holding inside its minimum hold), fill the remainder with the best new
+    names (unless allow_new is False)."""
     s = scores.dropna().sort_values(ascending=False)
     rank = pd.Series(np.arange(1, len(s) + 1), index=s.index)
-    keep = [p for p in prev if p in rank.index and rank[p] <= cfg.hold_until_rank]
+    locked = locked or set()
+    keep = [p for p in prev if p in locked] + \
+           [p for p in prev if p not in locked and p in rank.index and rank[p] <= cfg.hold_until_rank]
     if not allow_new:
         return keep[:cfg.top_n]
     out = list(keep)
