@@ -10,6 +10,9 @@ Non-goals: order execution, intraday data, options, paid data feeds, any change 
 repo or its OCI box.
 
 Personal project (`sumaer123@gmail.com`) — no `fe-` tools. Package `eqr`, root: this folder.
+Repo: private GitHub [`sumaer123/research-bot`](https://github.com/sumaer123/research-bot)
+(`origin`, branch `main`). Deploy-toolkit registry key `research-bot`, model **data-only** —
+runs on the Mac today; the non-OCI VM in `docs/REBUILD_SPEC.md` does not exist yet.
 
 ## Architecture
 

@@ -11,7 +11,10 @@ Sumaer Research Bot (package `eqr`) — an independent, point-in-time Indian-equ
 engine: it ranks the NSE universe (two sleeves, validated before trusted) and writes Claude
 research dossiers on request. It advises Project Upstox later through a read-only, fail-soft API
 line; it never places an order. Personal project (`sumaer123@gmail.com`), no `fe-` tools. Owner:
-Sumaer Bahl. Today it runs Mac-local only (model data-only phase); no production URL exists yet.
+Sumaer Bahl. Repo: private GitHub `https://github.com/sumaer123/research-bot` (`origin`, branch
+`main`). Deploy-toolkit registry key `research-bot`, model **data-only** (guards, auto-deploy,
+SQL migrations and agent-made env changes all `false` — see `.deploy-toolkit/registry.json`).
+Today it runs Mac-local only; no production URL exists yet.
 Planned host: a new non-OCI VM (Hetzner CX32 or GCP e2-standard-2 Mumbai) — the OCI box is
 Upstox-only and this project is never deployed there.
 
