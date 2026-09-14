@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- HAND-BUILT minimal fixture: in-bse-fin ANNUAL (FY2024) with P&L + balance
+     sheet (instant) + cash flow + auditor + unmodified-opinion + dimensioned
+     segment revenue. Values are Lakhs. -->
+<xbrli:xbrl
+    xmlns:xbrli="http://www.xbrl.org/2003/instance"
+    xmlns:in-bse-fin="http://www.bseindia.com/xbrl/fin/2018-03-31/in-bse-fin"
+    xmlns:iso4217="http://www.xbrl.org/2003/iso4217"
+    xmlns:xbrldi="http://xbrl.org/2006/xbrldi">
+
+  <xbrli:context id="FourD">
+    <xbrli:entity><xbrli:identifier scheme="http://www.nseindia.com">INE009A01021</xbrli:identifier></xbrli:entity>
+    <xbrli:period><xbrli:startDate>2023-04-01</xbrli:startDate><xbrli:endDate>2024-03-31</xbrli:endDate></xbrli:period>
+  </xbrli:context>
+  <xbrli:context id="AsOn31032024">
+    <xbrli:entity><xbrli:identifier scheme="http://www.nseindia.com">INE009A01021</xbrli:identifier></xbrli:entity>
+    <xbrli:period><xbrli:instant>2024-03-31</xbrli:instant></xbrli:period>
+  </xbrli:context>
+  <xbrli:context id="SegAuto">
+    <xbrli:entity>
+      <xbrli:identifier scheme="http://www.nseindia.com">INE009A01021</xbrli:identifier>
+      <xbrli:segment>
+        <xbrldi:explicitMember dimension="in-bse-fin:BusinessSegmentsAxis">in-bse-fin:AutomotiveSegmentMember</xbrldi:explicitMember>
+      </xbrli:segment>
+    </xbrli:entity>
+    <xbrli:period><xbrli:startDate>2023-04-01</xbrli:startDate><xbrli:endDate>2024-03-31</xbrli:endDate></xbrli:period>
+  </xbrli:context>
+  <xbrli:context id="SegFin">
+    <xbrli:entity>
+      <xbrli:identifier scheme="http://www.nseindia.com">INE009A01021</xbrli:identifier>
+      <xbrli:segment>
+        <xbrldi:explicitMember dimension="in-bse-fin:BusinessSegmentsAxis">in-bse-fin:FinancialServicesSegmentMember</xbrldi:explicitMember>
+      </xbrli:segment>
+    </xbrli:entity>
+    <xbrli:period><xbrli:startDate>2023-04-01</xbrli:startDate><xbrli:endDate>2024-03-31</xbrli:endDate></xbrli:period>
+  </xbrli:context>
+
+  <xbrli:unit id="INR"><xbrli:measure>iso4217:INR</xbrli:measure></xbrli:unit>
+  <xbrli:unit id="INRPerShare">
+    <xbrli:divide>
+      <xbrli:unitNumerator><xbrli:measure>iso4217:INR</xbrli:measure></xbrli:unitNumerator>
+      <xbrli:unitDenominator><xbrli:measure>xbrli:shares</xbrli:measure></xbrli:unitDenominator>
+    </xbrli:divide>
+  </xbrli:unit>
+
+  <in-bse-fin:LevelOfRoundingUsedInFinancialStatements contextRef="FourD">Lakhs</in-bse-fin:LevelOfRoundingUsedInFinancialStatements>
+  <in-bse-fin:NatureOfReportStandaloneConsolidated contextRef="FourD">Consolidated</in-bse-fin:NatureOfReportStandaloneConsolidated>
+
+  <!-- P&L (full year) -->
+  <in-bse-fin:RevenueFromOperations contextRef="FourD" unitRef="INR" decimals="-5">1500000.00</in-bse-fin:RevenueFromOperations>
+  <in-bse-fin:OtherIncome contextRef="FourD" unitRef="INR" decimals="-5">30000.00</in-bse-fin:OtherIncome>
+  <in-bse-fin:FinanceCosts contextRef="FourD" unitRef="INR" decimals="-5">45000.00</in-bse-fin:FinanceCosts>
+  <in-bse-fin:DepreciationAndAmortisationExpense contextRef="FourD" unitRef="INR" decimals="-5">60000.00</in-bse-fin:DepreciationAndAmortisationExpense>
+  <in-bse-fin:ProfitBeforeTax contextRef="FourD" unitRef="INR" decimals="-5">240000.00</in-bse-fin:ProfitBeforeTax>
+  <in-bse-fin:TaxExpense contextRef="FourD" unitRef="INR" decimals="-5">60000.00</in-bse-fin:TaxExpense>
+  <in-bse-fin:ProfitLoss contextRef="FourD" unitRef="INR" decimals="-5">180000.00</in-bse-fin:ProfitLoss>
+  <in-bse-fin:BasicEarningsPerShare contextRef="FourD" unitRef="INRPerShare" decimals="2">40.00</in-bse-fin:BasicEarningsPerShare>
+
+  <!-- Balance sheet (instant) -->
+  <in-bse-fin:TotalAssets contextRef="AsOn31032024" unitRef="INR" decimals="-5">3000000.00</in-bse-fin:TotalAssets>
+  <in-bse-fin:TradeReceivables contextRef="AsOn31032024" unitRef="INR" decimals="-5">220000.00</in-bse-fin:TradeReceivables>
+  <in-bse-fin:CashAndCashEquivalents contextRef="AsOn31032024" unitRef="INR" decimals="-5">150000.00</in-bse-fin:CashAndCashEquivalents>
+  <in-bse-fin:Inventories contextRef="AsOn31032024" unitRef="INR" decimals="-5">180000.00</in-bse-fin:Inventories>
+  <in-bse-fin:BorrowingsNoncurrent contextRef="AsOn31032024" unitRef="INR" decimals="-5">400000.00</in-bse-fin:BorrowingsNoncurrent>
+  <in-bse-fin:ShareCapital contextRef="AsOn31032024" unitRef="INR" decimals="-5">9000.00</in-bse-fin:ShareCapital>
+  <in-bse-fin:ReservesAndSurplus contextRef="AsOn31032024" unitRef="INR" decimals="-5">1200000.00</in-bse-fin:ReservesAndSurplus>
+
+  <!-- Cash flow (full year) -->
+  <in-bse-fin:CashFlowsFromUsedInOperatingActivities contextRef="FourD" unitRef="INR" decimals="-5">210000.00</in-bse-fin:CashFlowsFromUsedInOperatingActivities>
+  <in-bse-fin:CashFlowsFromUsedInInvestingActivities contextRef="FourD" unitRef="INR" decimals="-5">-90000.00</in-bse-fin:CashFlowsFromUsedInInvestingActivities>
+  <in-bse-fin:CashFlowsFromUsedInFinancingActivities contextRef="FourD" unitRef="INR" decimals="-5">-70000.00</in-bse-fin:CashFlowsFromUsedInFinancingActivities>
+
+  <!-- Auditor + opinion (annual only) -->
+  <in-bse-fin:AuditorsFirmName contextRef="FourD">B S R &amp; Co. LLP</in-bse-fin:AuditorsFirmName>
+  <in-bse-fin:TypeOfAuditQualification contextRef="FourD">Unmodified opinion</in-bse-fin:TypeOfAuditQualification>
+
+  <!-- Dimensioned segment revenue -->
+  <in-bse-fin:SegmentRevenue contextRef="SegAuto" unitRef="INR" decimals="-5">1000000.00</in-bse-fin:SegmentRevenue>
+  <in-bse-fin:SegmentRevenue contextRef="SegFin" unitRef="INR" decimals="-5">500000.00</in-bse-fin:SegmentRevenue>
+
+</xbrli:xbrl>

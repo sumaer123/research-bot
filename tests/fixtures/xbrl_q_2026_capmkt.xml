@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- HAND-BUILT minimal fixture: in-capmkt quarterly P&L (Q3 FY2026) + 9M YTD.
+     2025+ SEBI taxonomy. Rounding tag is LevelOfRounding. Values are Lakhs. -->
+<xbrli:xbrl
+    xmlns:xbrli="http://www.xbrl.org/2003/instance"
+    xmlns:in-capmkt="http://www.sebi.gov.in/xbrl/2025-01-31/in-capmkt"
+    xmlns:iso4217="http://www.xbrl.org/2003/iso4217"
+    xmlns:xbrldi="http://xbrl.org/2006/xbrldi">
+
+  <xbrli:context id="OneD">
+    <xbrli:entity><xbrli:identifier scheme="http://www.nseindia.com">INE467B01029</xbrli:identifier></xbrli:entity>
+    <xbrli:period><xbrli:startDate>2025-10-01</xbrli:startDate><xbrli:endDate>2025-12-31</xbrli:endDate></xbrli:period>
+  </xbrli:context>
+  <xbrli:context id="FourD">
+    <xbrli:entity><xbrli:identifier scheme="http://www.nseindia.com">INE467B01029</xbrli:identifier></xbrli:entity>
+    <xbrli:period><xbrli:startDate>2025-04-01</xbrli:startDate><xbrli:endDate>2025-12-31</xbrli:endDate></xbrli:period>
+  </xbrli:context>
+
+  <xbrli:unit id="INR"><xbrli:measure>iso4217:INR</xbrli:measure></xbrli:unit>
+  <xbrli:unit id="INRPerShare">
+    <xbrli:divide>
+      <xbrli:unitNumerator><xbrli:measure>iso4217:INR</xbrli:measure></xbrli:unitNumerator>
+      <xbrli:unitDenominator><xbrli:measure>xbrli:shares</xbrli:measure></xbrli:unitDenominator>
+    </xbrli:divide>
+  </xbrli:unit>
+
+  <in-capmkt:LevelOfRounding contextRef="OneD">Lakhs</in-capmkt:LevelOfRounding>
+  <in-capmkt:NatureOfReportStandaloneConsolidated contextRef="OneD">Standalone</in-capmkt:NatureOfReportStandaloneConsolidated>
+
+  <in-capmkt:RevenueFromOperations contextRef="OneD" unitRef="INR" decimals="-5">250000.00</in-capmkt:RevenueFromOperations>
+  <in-capmkt:OtherIncome contextRef="OneD" unitRef="INR" decimals="-5">5000.00</in-capmkt:OtherIncome>
+  <in-capmkt:EmployeeBenefitExpense contextRef="OneD" unitRef="INR" decimals="-5">40000.00</in-capmkt:EmployeeBenefitExpense>
+  <in-capmkt:FinanceCosts contextRef="OneD" unitRef="INR" decimals="-5">6000.00</in-capmkt:FinanceCosts>
+  <in-capmkt:DepreciationAndAmortisationExpense contextRef="OneD" unitRef="INR" decimals="-5">9000.00</in-capmkt:DepreciationAndAmortisationExpense>
+  <in-capmkt:OtherExpenses contextRef="OneD" unitRef="INR" decimals="-5">30000.00</in-capmkt:OtherExpenses>
+  <in-capmkt:ProfitBeforeTax contextRef="OneD" unitRef="INR" decimals="-5">170000.00</in-capmkt:ProfitBeforeTax>
+  <in-capmkt:TaxExpense contextRef="OneD" unitRef="INR" decimals="-5">42500.00</in-capmkt:TaxExpense>
+  <in-capmkt:ProfitLoss contextRef="OneD" unitRef="INR" decimals="-5">127500.00</in-capmkt:ProfitLoss>
+  <in-capmkt:BasicEarningsPerShare contextRef="OneD" unitRef="INRPerShare" decimals="2">12.75</in-capmkt:BasicEarningsPerShare>
+  <in-capmkt:PaymentOfDividend contextRef="OneD" unitRef="INR" decimals="-5">1000.00</in-capmkt:PaymentOfDividend>
+
+  <in-capmkt:RevenueFromOperations contextRef="FourD" unitRef="INR" decimals="-5">720000.00</in-capmkt:RevenueFromOperations>
+  <in-capmkt:ProfitLoss contextRef="FourD" unitRef="INR" decimals="-5">360000.00</in-capmkt:ProfitLoss>
+
+</xbrli:xbrl>

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- HAND-BUILT minimal fixture: in-capmkt-ent bank quarterly (Q3 FY2026) with
+     bank KPIs (CET1, GNPA/NNPA, advances, deposits, provisions). Values Lakhs;
+     ratios are xbrli:pure and must NOT be scaled. -->
+<xbrli:xbrl
+    xmlns:xbrli="http://www.xbrl.org/2003/instance"
+    xmlns:in-capmkt-ent="http://www.sebi.gov.in/xbrl/2025-01-31/in-capmkt-ent"
+    xmlns:iso4217="http://www.xbrl.org/2003/iso4217"
+    xmlns:xbrldi="http://xbrl.org/2006/xbrldi">
+
+  <xbrli:context id="OneD">
+    <xbrli:entity><xbrli:identifier scheme="http://www.nseindia.com">INE040A01034</xbrli:identifier></xbrli:entity>
+    <xbrli:period><xbrli:startDate>2025-10-01</xbrli:startDate><xbrli:endDate>2025-12-31</xbrli:endDate></xbrli:period>
+  </xbrli:context>
+  <xbrli:context id="AsOn31122025">
+    <xbrli:entity><xbrli:identifier scheme="http://www.nseindia.com">INE040A01034</xbrli:identifier></xbrli:entity>
+    <xbrli:period><xbrli:instant>2025-12-31</xbrli:instant></xbrli:period>
+  </xbrli:context>
+
+  <xbrli:unit id="INR"><xbrli:measure>iso4217:INR</xbrli:measure></xbrli:unit>
+  <xbrli:unit id="pure"><xbrli:measure>xbrli:pure</xbrli:measure></xbrli:unit>
+
+  <in-capmkt-ent:LevelOfRounding contextRef="OneD">Lakhs</in-capmkt-ent:LevelOfRounding>
+  <in-capmkt-ent:NatureOfReportStandaloneConsolidated contextRef="OneD">Standalone</in-capmkt-ent:NatureOfReportStandaloneConsolidated>
+
+  <in-capmkt-ent:InterestEarned contextRef="OneD" unitRef="INR" decimals="-5">800000.00</in-capmkt-ent:InterestEarned>
+  <in-capmkt-ent:ProfitBeforeTax contextRef="OneD" unitRef="INR" decimals="-5">300000.00</in-capmkt-ent:ProfitBeforeTax>
+  <in-capmkt-ent:TaxExpense contextRef="OneD" unitRef="INR" decimals="-5">75000.00</in-capmkt-ent:TaxExpense>
+  <in-capmkt-ent:ProfitLoss contextRef="OneD" unitRef="INR" decimals="-5">225000.00</in-capmkt-ent:ProfitLoss>
+  <in-capmkt-ent:ProvisionsAndContingencies contextRef="OneD" unitRef="INR" decimals="-5">50000.00</in-capmkt-ent:ProvisionsAndContingencies>
+
+  <in-capmkt-ent:CET1Ratio contextRef="AsOn31122025" unitRef="pure" decimals="4">0.1425</in-capmkt-ent:CET1Ratio>
+  <in-capmkt-ent:GrossNonPerformingAssets contextRef="AsOn31122025" unitRef="INR" decimals="-5">180000.00</in-capmkt-ent:GrossNonPerformingAssets>
+  <in-capmkt-ent:NetNonPerformingAssets contextRef="AsOn31122025" unitRef="INR" decimals="-5">45000.00</in-capmkt-ent:NetNonPerformingAssets>
+  <in-capmkt-ent:Advances contextRef="AsOn31122025" unitRef="INR" decimals="-5">25000000.00</in-capmkt-ent:Advances>
+  <in-capmkt-ent:Deposits contextRef="AsOn31122025" unitRef="INR" decimals="-5">32000000.00</in-capmkt-ent:Deposits>
+  <in-capmkt-ent:ReturnOnAssets contextRef="AsOn31122025" unitRef="pure" decimals="4">0.0180</in-capmkt-ent:ReturnOnAssets>
+
+</xbrli:xbrl>
