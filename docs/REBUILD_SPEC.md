@@ -106,7 +106,8 @@ Names and purpose only — values live in the gitignored `.env` (copied from `.e
 | `TELEGRAM_CHAT_ID` | Destination chat for the digest | `.env` | required for `eqr digest --send` |
 | `ANTHROPIC_API_KEY` | Optional API path for dossiers | `.env` | optional — unset uses the `claude` CLI on the Mac instead |
 | `EQR_CLAUDE_MODEL` | Model name for dossier runs | `.env` | optional |
-| `EQR_RISK_FREE_PCT` | Risk-free rate used to price the regime's cash sleeve | `.env` | optional |
+| `EQR_RISK_FREE_PCT` | Annual risk-free rate (%) used in cost model and regime pricing | `.env` | optional (default 6.0) |
+| `EQR_EXPERIMENTS_DIR` | Override the experiments directory (default: `<project>/experiments`) | `.env` | optional |
 | `RESTIC_REPOSITORY` | Restic backup repository target | `.env` on the VM | required for `deploy/backup.sh` to do anything |
 | `RESTIC_PASSWORD` | Restic repository password | `.env` on the VM | required with `RESTIC_REPOSITORY` |
 | `B2_ACCOUNT_ID` | Backblaze B2 account id (restic backend) | `.env` on the VM | required with `RESTIC_REPOSITORY` |
@@ -134,14 +135,17 @@ Full detail (URL pattern, cadence, verified depth, PIT rule, failure mode) lives
 Single schema file, no migration framework: `eqr/store/schema.sql`, applied idempotently
 (`CREATE TABLE IF NOT EXISTS …`) by `eqr init` / `connect()`. Schema changes are edits to that
 file plus a re-run of `eqr init` — additive changes are safe; anything destructive needs
-`production-engineer`'s explicit review per the global doctrine. Tables (grouped by layer):
+`production-engineer`'s explicit review per the global doctrine. Wave 1 (2026-09-14) corrected
+primary keys for durable tables: `fund_metrics(as_of,symbol,metric,engine_version)`,
+`dossiers(run_id)`, `dossier_claims(run_id,claim_id)`; added `prospective_ledger` table and
+`dossiers_current` view to separate STORED+REJECTED runs. Tables (grouped by layer):
 
 - **Store/spine:** `instruments`, `prices_daily`, `trading_days`, `adj_factors`, `index_daily`,
   `corporate_actions`, `statements`, `statement_revisions`, `shareholding`, `results_calendar`,
   `surveillance`, `fo_ban`, `deals`, `announcements`, `documents`, `screener_meta`, `fetch_log`,
   `quality_checks`, `runs`, `holidays`, `factor_anomalies`, `etf_list`.
 - **Features/strategy:** `universe_monthly`, `features`, `ranks`, `regime_daily`.
-- **Validate/research:** `backtests`, `dossiers`.
+- **Validate/research:** `backtests`, `dossiers`, `dossier_claims`, `fund_metrics`, `prospective_ledger`, `dossiers_current` (view).
 
 No seeds — every table is populated by a spine fetch or a derived computation, never hand-typed
 data.

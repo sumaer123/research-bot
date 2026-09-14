@@ -41,14 +41,15 @@ Benchmarks: NIFTY 500 (TR proxy), NIFTY 50, and an equal-weight universe.
 A sleeve that fails even one line is reported NOT VALIDATED and is never exposed to Project
 Upstox as anything but a diagnostic line — see `README.md`'s guardrails.
 
-## Sleeve L — VALIDATED
+## Sleeve L — PROVISIONAL
 
 Source: `data/reports/validate-20260914-063318-1219c7/report.md` (2017-06-01 -> 2026-09-11,
 holdout from 2025-09-01, Rs 1,000,000 capital, 6 pre-registered trials) — the latest of four L
 runs made today; earlier runs in this session found and fixed engine bugs (spec §4.2), so this
-is the one that counts.
+is the one that counts. Claim state: PROVISIONAL (step 2 of 4) pending resolution of six
+verified integrity items (see caveats below).
 
-### Verdict: VALIDATED
+### Verdict: PROVISIONAL — six open reasons
 
 | Check | Status | Detail |
 |---|---|---|
@@ -62,7 +63,7 @@ is the one that counts.
 
 All 7 checks pass.
 
-### Out-of-sample (stitched folds, net of costs)
+### Out-of-sample (stitched folds, net of costs, time-weighted)
 
 | Metric | Strategy | Index |
 |---|---|---|
@@ -115,9 +116,18 @@ Capacity: median order 0.03% of ADV20, p90 0.20%; turnover 311%/yr; costs 163 bp
 
 ### Caveats — read these before trusting the headline number
 
+**Six verified integrity items hold this rating at PROVISIONAL (not BACKTEST_PASS or PROSPECTIVE_VALIDATED) until resolved:**
+1. **AS_RESTATED_FUNDAMENTALS** — screener.in historical fundamentals (stored as-of statements) lack re-statement tracking; a restated FY25 would not update earlier PIT evaluations
+2. **MCAP_NOT_SPLIT_INVARIANT** — market-cap history does not split-adjust; delisted companies have synthetic mcap values
+3. **HOLDOUT_INSPECTED** — the holdout (2025-09-01 → 2026-09-11) was burned during design validation, not held blind until the end
+4. **TRIALS_UNDERCOUNTED** — only 6 trials reported; a sweep of N∈{15,25,35}, 4 weight variants, and 2 liquidity floors could yield 56+ trials (deflated Sharpe penalty applies to what's actually run)
+5. **CONTROLS_NO_HISTORY** — no historical version of Piotroski/Altman/Beneish scores; the engine recomputes them on the latest data, so control-variable values drift between folds
+6. **BENCH_PROXY** — NIFTY 500 is a price index; the TR proxy assumes 1.3% constant dividend yield, not actual history
+
+**Additional caveats:**
 - The 2018-19 small-cap bust sits inside the training window, not the out-of-sample window. Over
   the full 2017->2026 period, the selected configuration (`L-N20-momentum_tilt-T1cr`, the "all
-  trials" row above) shows 19.9% CAGR with a -46.3% max drawdown — clearly worse than the
+  trials" row above) shows 19.9% time-weighted CAGR with a -46.3% max drawdown — clearly worse than the
   stitched-OOS 28.7% CAGR / -22.2% drawdown headline. The OOS number is real, but it is not the
   full-history number.
 - The boom years 2021 and 2023 carry most of the out-of-sample excess (+40.8% and +66.1% in the
@@ -131,15 +141,15 @@ Capacity: median order 0.03% of ADV20, p90 0.20%; turnover 311%/yr; costs 163 bp
   ran; the engine bugs that earlier look found and fixed are listed in the design spec §4.2, not
   repeated here.
 
-## Sleeve S — NOT VALIDATED
+## Sleeve S — DIAGNOSTIC
 
 Source: `data/reports/validate-20260914-064307-495ffd/report.md` (2017-06-01 -> 2026-09-11,
 holdout from 2025-09-01, Rs 1,000,000 capital, 6 pre-registered trials) — the second of two S
 runs made today. The first (`validate-20260914-061830-bce33a`) printed a robustness table with
 every row duplicated and mislabelled "4 variants"; this rerun corrects that to the true 2
-variants. The verdict is unchanged (NOT VALIDATED) — the figures below are the corrected ones.
+variants. The verdict is unchanged (DIAGNOSTIC, step 1 of 4 in the claim-state ladder).
 
-### Verdict: NOT VALIDATED
+### Verdict: DIAGNOSTIC — fails acceptance bar
 
 | Check | Status | Detail |
 |---|---|---|
@@ -153,7 +163,7 @@ variants. The verdict is unchanged (NOT VALIDATED) — the figures below are the
 
 Only 2 of 7 checks pass — a clean failure, not a borderline one.
 
-### Out-of-sample (stitched folds, net of costs)
+### Out-of-sample (stitched folds, net of costs, time-weighted)
 
 | Metric | Strategy | Index |
 |---|---|---|

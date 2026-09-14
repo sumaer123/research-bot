@@ -107,16 +107,20 @@ by the regime's exposure); execution is out of scope for this project.
 
 ## Validation verdicts (2026-09-14, first run of the pre-registered protocol)
 
-**Sleeve L: VALIDATED.** Out-of-sample (stitched folds, net of costs, 2019 -> Aug 2025): CAGR
+**Sleeve L: PROVISIONAL** (claim-state ladder step 2 of 4). Out-of-sample time-weighted CAGR
 28.7% vs 17.1% for the NIFTY 500 TR proxy, Sharpe 1.28 vs 0.73, max drawdown -22.2% vs -37.8%,
 information ratio 0.72, deflated-Sharpe p = 0.005 (6 trials), 4 of 4 recent folds beat the index,
 robust across N in {20,30} and the Rs 1cr/Rs 3cr liquidity floors, median order 0.03% of ADV20 at
 Rs 10 lakh capital. Holdout (Sep-2025 -> Sep-2026, evaluated once): 21.9% vs 1.9%, Sharpe 0.98.
+Cost model: 50 bps impact coefficient; risk-free rate from `EQR_RISK_FREE_PCT` (default 6.0%).
 
-Caveats that travel with this verdict, in the same words as the design spec (§12a) — read them
-before trusting the headline number:
+Six verified integrity items hold this rating at PROVISIONAL, not BACKTEST_PASS, until resolved:
+AS_RESTATED_FUNDAMENTALS, MCAP_NOT_SPLIT_INVARIANT, HOLDOUT_INSPECTED, TRIALS_UNDERCOUNTED,
+CONTROLS_NO_HISTORY, BENCH_PROXY. The holdout was burned (inspected during tuning), which is
+correct but requires explicit recording. Read the design spec (§12a) and `docs/VALIDATION.md`
+before trusting the headline number. Additional caveats:
 - the 2018-19 small-cap bust sits inside the training window; over the full 2017->2026 period the
-  same configuration shows 19.9% CAGR with a -46% drawdown, not 28.7%/-22.2%;
+  same configuration shows 19.9% time-weighted CAGR with a -46% drawdown, not 28.7%/-22.2%;
 - the boom years 2021 and 2023 carry much of the out-of-sample excess;
 - fundamentals survivorship bias: delisted names keep their price history but never had a
   screener.in page, so Sleeve L's fundamentals exist only for survivors — 823 of the 1,225 names
@@ -124,12 +128,12 @@ before trusting the headline number:
 - the base configuration's full-period result was seen once before the protocol ran; the engine
   bugs that pass found and fixed are listed in the design spec §4.2.
 
-**Sleeve S: NOT VALIDATED.** OOS Sharpe -0.22, IR -0.92, deflated-Sharpe p = 0.855; turnover
-~2,000%/yr drives costs to 1,180-1,360 bps/yr, which erases any signal the weekly design has. It
-is never exposed to Project Upstox as anything but a diagnostic line. An exploratory, post-hoc
-minimum-hold rule improved turnover sharply but still only matched the index after costs; the
-next pre-registered experiment is 8-12 week holds with a signal that actually clears the cost
-line. Full fold-by-fold detail for both sleeves: `docs/VALIDATION.md`.
+**Sleeve S: DIAGNOSTIC** (claim-state ladder step 1 of 4). OOS Sharpe -0.22, IR -0.92,
+deflated-Sharpe p = 0.855; turnover ~2,000%/yr drives costs to 1,180-1,360 bps/yr, which erases
+any signal the weekly design has. It is never exposed to Project Upstox as anything but a
+diagnostic line. An exploratory, post-hoc minimum-hold rule improved turnover sharply but still
+only matched the index after costs; the next pre-registered experiment is 8-12 week holds with a
+signal that actually clears the cost line. Full fold-by-fold detail for both sleeves: `docs/VALIDATION.md`.
 
 ## The advisor contract (for Project Upstox, later — R6)
 
