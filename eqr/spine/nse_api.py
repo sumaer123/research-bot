@@ -388,7 +388,7 @@ def fetch_integrated_results(api: NseApi, start: date, end: date, log=None, page
                 fd = _dt(x.get("broadcast_Date")) or _dt(x.get("creation_Date"))
                 if not pe or not fd or not x.get("symbol"):
                     continue
-                xbrl_raw = x.get("xbrl") or x.get("ixbrl")
+                xbrl_raw = _xbrl_or_none(x.get("xbrl")) or x.get("ixbrl")
                 rows.append({"symbol": x["symbol"].strip(), "period_end": pe,
                              "consolidated": (x.get("consolidated") or "").strip() or "Unknown",
                              "filing_dt": fd, "audited": x.get("audited"), "period": "Quarterly", "source": "nse_ifr",

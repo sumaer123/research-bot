@@ -178,6 +178,17 @@ def test_fetch_integrated_results_placeholder_to_none():
     assert df.iloc[0]["xbrl_url"] is None
 
 
+def test_fetch_integrated_results_dash_xbrl_falls_back_to_ixbrl():
+    """xbrl="-" is a truthy placeholder; ixbrl must still be consulted when xbrl is a placeholder."""
+    ixbrl_url = "https://archives.nseindia.com/corporate/xbrl/INFY_ix.xml"
+    row = _ifr_row(xbrl="-", ixbrl=ixbrl_url)
+    api = _make_api({"data": [row]})
+    df = fetch_integrated_results(api, date(2025, 4, 1), date(2025, 6, 30))
+    assert df.iloc[0]["xbrl_url"] == ixbrl_url, (
+        "xbrl='-' is a placeholder; ixbrl URL should be used instead of returning None"
+    )
+
+
 def test_fetch_integrated_results_slash_dash_placeholder_to_none():
     row = _ifr_row(xbrl="https://archives.nseindia.com/corporate/xbrl/-", ixbrl=None)
     api = _make_api({"data": [row]})
