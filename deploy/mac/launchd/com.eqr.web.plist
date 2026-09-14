@@ -3,11 +3,15 @@
 <plist version="1.0">
 <dict>
   <!-- eqr web dashboard + advisor API on the Mac (twin of systemd/eqr-web.service).
-       __ROOT__ and __LOGS__ are filled in by deploy/mac/install-mac.sh. -->
+       __ROOT__ and __LOGS__ are filled in by deploy/mac/install-mac.sh.
+       launchd execs .venv/bin/python DIRECTLY: the project is under ~/Downloads (TCC),
+       and only a binary holding the Downloads grant may run there — the uv Python
+       does, Apple's /bin/sh and bash do not (see deploy/mac/jobs.py). -->
   <key>Label</key><string>com.eqr.web</string>
   <key>ProgramArguments</key>
   <array>
-    <string>__ROOT__/.venv/bin/eqr</string>
+    <string>__ROOT__/.venv/bin/python</string>
+    <string>-m</string><string>eqr.cli</string>
     <string>web</string>
     <string>--host</string><string>127.0.0.1</string>
     <string>--port</string><string>8801</string>

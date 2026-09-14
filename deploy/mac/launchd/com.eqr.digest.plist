@@ -2,10 +2,17 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <!-- eqr Telegram digest at 07:30 local (twin of eqr-digest.timer). -->
+  <!-- eqr Telegram digest at 07:30 local (twin of eqr-digest.timer).
+       launchd execs .venv/bin/python DIRECTLY: the project is under ~/Downloads (TCC),
+       and only a binary holding the Downloads grant may run there — the uv Python
+       does, Apple's /bin/sh and bash do not (see deploy/mac/jobs.py). -->
   <key>Label</key><string>com.eqr.digest</string>
   <key>ProgramArguments</key>
-  <array><string>__ROOT__/deploy/mac/digest.sh</string></array>
+  <array>
+    <string>__ROOT__/.venv/bin/python</string>
+    <string>__ROOT__/deploy/mac/jobs.py</string>
+    <string>digest</string>
+  </array>
   <key>WorkingDirectory</key><string>__ROOT__</string>
   <key>StartCalendarInterval</key>
   <dict><key>Hour</key><integer>7</integer><key>Minute</key><integer>30</integer></dict>

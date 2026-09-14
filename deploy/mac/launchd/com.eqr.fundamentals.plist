@@ -3,10 +3,17 @@
 <plist version="1.0">
 <dict>
   <!-- eqr weekly fundamentals sweep, Saturday 02:00 local = Friday 20:30 UTC
-       (twin of eqr-fundamentals.timer), then features and both sleeve ranks. -->
+       (twin of eqr-fundamentals.timer), then features and both sleeve ranks.
+       launchd execs .venv/bin/python DIRECTLY: the project is under ~/Downloads (TCC),
+       and only a binary holding the Downloads grant may run there — the uv Python
+       does, Apple's /bin/sh and bash do not (see deploy/mac/jobs.py). -->
   <key>Label</key><string>com.eqr.fundamentals</string>
   <key>ProgramArguments</key>
-  <array><string>__ROOT__/deploy/mac/fundamentals.sh</string></array>
+  <array>
+    <string>__ROOT__/.venv/bin/python</string>
+    <string>__ROOT__/deploy/mac/jobs.py</string>
+    <string>fundamentals</string>
+  </array>
   <key>WorkingDirectory</key><string>__ROOT__</string>
   <key>StartCalendarInterval</key>
   <dict><key>Weekday</key><integer>6</integer><key>Hour</key><integer>2</integer><key>Minute</key><integer>0</integer></dict>

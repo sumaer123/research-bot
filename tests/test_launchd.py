@@ -6,7 +6,6 @@ surface at 19:45 the next day as a job that never ran. These pin the shape.
 """
 from __future__ import annotations
 
-import os
 import plistlib
 import stat
 from pathlib import Path
@@ -35,7 +34,10 @@ def test_every_agent_renders_to_a_valid_plist_with_its_label():
         d = _render(label)
         assert d["Label"] == label
         assert d["WorkingDirectory"] == "/opt/eqr"
-        assert d["ProgramArguments"][0].startswith("/opt/eqr/")
+        # The project sits under ~/Downloads (TCC): launchd must exec the venv's
+        # Python itself, which holds the Downloads grant — never a /bin/sh or bash
+        # trampoline, which does not. The first cut did, and every spawn exited 126.
+        assert d["ProgramArguments"][0] == "/opt/eqr/.venv/bin/python"
         assert d["StandardOutPath"].startswith("/var/log/eqr/")
         assert d["StandardErrorPath"].startswith("/var/log/eqr/")
 
@@ -53,23 +55,41 @@ def test_schedules_mirror_the_systemd_timers():
 
 def test_web_agent_binds_loopback_on_8801():
     args = _render("com.eqr.web")["ProgramArguments"]
-    assert args[1:] == ["web", "--host", "127.0.0.1", "--port", "8801"]
+    assert args[1:] == ["-m", "eqr.cli", "web", "--host", "127.0.0.1", "--port", "8801"]
 
 
-def test_wrapper_scripts_are_executable_and_chain_the_right_commands():
-    for name, needles in {
-        "refresh.sh": ["eqr\" refresh", "reference --from", "date -v-45d"],
-        "fundamentals.sh": ["fundamentals --rate 1.5", "features", "rank --sleeve L", "rank --sleeve S"],
-        "digest.sh": ["digest --send"],
-        "install-mac.sh": ["Library/Logs/eqr", "launchctl bootstrap", "plutil -lint", "--remove"],
-    }.items():
-        p = MAC / name
-        assert p.stat().st_mode & stat.S_IXUSR, f"{name} must be executable"
-        text = p.read_text()
-        assert text.startswith("#!/usr/bin/env bash")
-        assert "set -euo pipefail" in text
-        for needle in needles:
-            assert needle in text, f"{name} lacks {needle!r}"
+def test_calendar_agents_run_the_job_runner_with_their_own_job():
+    for label in ("com.eqr.refresh", "com.eqr.fundamentals", "com.eqr.digest"):
+        args = _render(label)["ProgramArguments"]
+        assert args[1:] == ["/opt/eqr/deploy/mac/jobs.py", label.rsplit(".", 1)[1]]
+
+
+def test_job_runner_chains_mirror_the_systemd_units():
+    import importlib.util
+    from datetime import date
+
+    spec = importlib.util.spec_from_file_location("eqr_mac_jobs", MAC / "jobs.py")
+    jobs = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(jobs)
+    chains = jobs.chains(date(2026, 9, 14))
+    assert chains["refresh"] == [["refresh"], ["reference", "--from", "2026-07-31"]]
+    assert chains["fundamentals"] == [
+        ["fundamentals", "--rate", "1.5"], ["features"], ["rank", "--sleeve", "L"], ["rank", "--sleeve", "S"],
+    ]
+    assert chains["digest"] == [["digest", "--send"]]
+    assert jobs.main(["jobs.py"]) == 2          # no job → usage, nothing run
+    assert jobs.main(["jobs.py", "nope"]) == 2
+
+
+def test_installer_is_executable_and_checks_what_matters():
+    p = MAC / "install-mac.sh"
+    assert p.stat().st_mode & stat.S_IXUSR, "install-mac.sh must be executable"
+    text = p.read_text()
+    assert text.startswith("#!/usr/bin/env bash")
+    assert "set -euo pipefail" in text
+    for needle in ["Library/Logs/eqr", "launchctl bootstrap", "plutil -lint", "--remove",
+                   ".venv/bin/python", "kTCCServiceSystemPolicyDownloadsFolder"]:
+        assert needle in text, f"install-mac.sh lacks {needle!r}"
 
 
 def test_logs_live_under_library_logs_not_a_tcc_protected_folder():
@@ -80,3 +100,16 @@ def test_logs_live_under_library_logs_not_a_tcc_protected_folder():
     for p in LAUNCHD.glob("*.plist"):
         text = p.read_text()
         assert text.count("__LOGS__/") == 2, f"{p.name} must route stdout and stderr through __LOGS__"
+
+
+def test_env_example_parses_to_empty_values_not_comments():
+    # python-dotenv reads `NAME=   # note` as the value "# note". The first Mac
+    # install copied such a file to .env and pointed the database at a comment.
+    from dotenv import dotenv_values
+
+    values = dotenv_values(ROOT / ".env.example")
+    poisoned = {k: v for k, v in values.items() if v and v.lstrip().startswith("#")}
+    assert poisoned == {}, poisoned
+    assert values["EQR_DATA_DIR"] == "" and values["EQR_ADVISOR_TOKEN"] == "" and values["EQR_PROXY"] == ""
+    installer = (MAC / "install-mac.sh").read_text()
+    assert "=[[:space:]]*#" in installer, "install-mac.sh must refuse a poisoned .env"
