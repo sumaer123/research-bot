@@ -56,7 +56,7 @@ Upstox-only and this project is never deployed there.
   client for Upstox's future R6 integration — fail-soft by construction).
 - `eqr/cli.py` — every command (§8). `eqr/config.py` — env/settings loading.
 - `deploy/` — `install.sh` (idempotent VM setup), `backup.sh` (restic), `Caddyfile` (TLS
-  reverse-proxy, `__DOMAIN__` placeholder), `systemd/*.service` + `*.timer` (§9).
+  reverse-proxy, `__DOMAIN__` placeholder), `systemd/*.service` + `*.timer` (§9), `mac/install-mac.sh` (Mac launchd agents, idempotent), `mac/jobs.py` (schedule logic for refresh / fundamentals / digest).
 - `tests/` — 39 tests + `fixtures/` (3 bhavcopy formats, MTO, index CSV, a screener HTML
   snippet, etc.).
 - `data/` — gitignored. `eqr.duckdb`, `raw/` (immutable fetch cache), `reports/`, `docs/`
@@ -65,8 +65,14 @@ Upstox-only and this project is never deployed there.
 
 ## 4. Infrastructure
 
-- **Hosting today:** none — Mac-local only, run by hand (`eqr web`, `eqr refresh`, …), no
-  launchd job installed yet.
+- **Hosting today:** Mac-local via launchd. Four user agents installed by `bash deploy/mac/install-mac.sh` (idempotent, re-run after pulling new code):
+  - `com.eqr.web` — always running (KeepAlive), dashboard + advisor API on 127.0.0.1:8801, reachable via `http://127.0.0.1:8801/health` (200 = running)
+  - `com.eqr.refresh` — daily at 19:45 IST (weekends included)
+  - `com.eqr.fundamentals` — Saturday 02:00 IST only
+  - `com.eqr.digest` — daily at 07:30 IST
+  - Logs in `~/Library/Logs/eqr/` (readable as plain text, or `log stream --predicate 'process=~[com.eqr]'` for live tailing)
+  - **TCC gotcha:** the `.venv/bin/python` interpreter has the "Downloads folder" grant; `/bin/sh` does not. The console script `eqr` (which wraps `python -m eqr.cli`) invokes `/bin/sh` and will exit 126 if called from launchd — always exec `.venv/bin/python` directly in plists, as the installer does.
+  - Remove all agents: `bash deploy/mac/install-mac.sh --remove`.
 - **Hosting planned:** Hetzner CX32 (4 vCPU / 8 GB / 80 GB, ~EUR 7/mo) or GCP e2-standard-2
   Mumbai (if an Indian egress IP matters more than cost); Ubuntu 24.04; `uv`-managed Python;
   systemd timers; Caddy for TLS. Provisioning (account + payment) is Sumaer's; `deploy/` is
@@ -105,6 +111,8 @@ Names and purpose only — values live in the gitignored `.env` (copied from `.e
 | `RESTIC_PASSWORD` | Restic repository password | `.env` on the VM | required with `RESTIC_REPOSITORY` |
 | `B2_ACCOUNT_ID` | Backblaze B2 account id (restic backend) | `.env` on the VM | required with `RESTIC_REPOSITORY` |
 | `B2_ACCOUNT_KEY` | Backblaze B2 account key (restic backend) | `.env` on the VM | required with `RESTIC_REPOSITORY` |
+
+**Important:** `.env.example` uses _comments on separate lines only_: `NAME` on one line, its comment on the next. Do not put a comment after a value on the same line (`NAME=value  # comment`); python-dotenv will read `# comment` as the value. The installer copies `.env.example` -> `.env` and refuses to load agents if the result is malformed.
 
 ## 6. External integrations & data sources
 

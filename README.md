@@ -80,6 +80,18 @@ NSE is healthy today.
 Full command reference: `docs/REBUILD_SPEC.md` §8. Every command above except `web`/`doctor`
 writes to `data/eqr.duckdb` or `data/raw/`.
 
+## Running on macOS (production)
+
+To run the dashboard, refresh, fundamentals, and digest tasks unattended via launchd:
+
+```
+bash deploy/mac/install-mac.sh
+```
+
+This installs four agents that run on a fixed schedule (IST): web always, refresh at 19:45 daily,
+fundamentals at 02:00 Saturday, digest at 07:30 daily. Logs go to `~/Library/Logs/eqr/`. For
+details (schedules, logs, TCC gotchas, removal), see `docs/OPERATIONS.md` "Running on the Mac (launchd)".
+
 ## The two sleeves
 
 - **Sleeve L — Compounders** (monthly rebalance). Score = 0.30 quality + 0.25 value +

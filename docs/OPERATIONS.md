@@ -83,6 +83,60 @@ never calls into Upstox, never reads its data, and is never deployed to the OCI 
 per standing project doctrine). Building R6 itself is Upstox's work, tracked in that project's
 own docs, not here.
 
+## Running on the Mac (launchd)
+
+Four user agents (web dashboard, refresh, fundamentals, digest) run unattended via launchd in
+`gui/$(id -u)`. Install or reinstall after pulling new code:
+
+```
+bash deploy/mac/install-mac.sh
+```
+
+The script is idempotent: it renders the four plist files (with `__ROOT__` and `__LOGS__` placeholders),
+validates them (`plutil -lint`), and loads them into launchd. Logs go to `~/Library/Logs/eqr/` (readable
+as plain text or via `log stream --predicate 'process=~[com.eqr]' --level debug` if timestamps are needed).
+
+### Schedules (IST)
+
+| Agent | Trigger | What |
+|---|---|---|
+| `com.eqr.web` | always, KeepAlive | Dashboard + advisor API on 127.0.0.1:8801; check health: `curl http://127.0.0.1:8801/health` (200 = running) |
+| `com.eqr.refresh` | daily 19:45 | `eqr refresh`, then `eqr reference --from <today-45d>` |
+| `com.eqr.fundamentals` | Saturday 02:00 | `eqr fundamentals --rate 1.5`, then `eqr features`, then `eqr rank --sleeve L` and `--sleeve S` |
+| `com.eqr.digest` | daily 07:30 | `eqr digest --send` (prints to log: `{"sent": false}` if `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` unset, as expected) |
+
+### TCC (Transparency, Consent & Control) gotcha
+
+The `.venv/bin/python` interpreter holds the "Downloads folder" grant (from where the project lives).
+The console script `eqr` (which wraps `python -m eqr.cli:app`) runs `/bin/sh`, which does not have that
+grant. A plist that execs the `eqr` script will exit 126 on the Mac. **Always exec `.venv/bin/python` directly in plists**, as the installer does — the working directory is set correctly.
+
+### Logs
+
+```
+# Tail all eqr agents in real-time:
+log stream --predicate 'process=~[com.eqr]' --level debug
+
+# Last run of digest (stdout):
+tail -30 ~/Library/Logs/eqr/digest.out
+```
+
+### Remove
+
+To unload all agents:
+
+```
+bash deploy/mac/install-mac.sh --remove
+```
+
+### Relation to the VM
+
+Everything here runs on the Mac today. The planned future is a Hetzner or GCP VM running Ubuntu 24.04
+with the same `eqr` code, but using `deploy/install.sh` (not the Mac installer) and systemd timers
+(not launchd). The command/schedule logic is shared: `deploy/mac/jobs.py` and `deploy/systemd/*.timer`
+both invoke the same CLI commands. Switching to the VM is a one-time handoff — once the VM is live,
+the Mac agents can be unloaded.
+
 ## Known open items
 
 - **Survivorship gap for delisted names (Sleeve L only).** Delisted names keep their price
@@ -100,7 +154,8 @@ own docs, not here.
   week holds with a signal that actually clears the cost line, not just a longer hold on the
   same signal. Sleeve S stays a diagnostic line only until a fresh, pre-registered run passes
   the acceptance bar in `docs/VALIDATION.md`.
-- **VM not yet provisioned.** Everything above runs on the Mac only. No Hetzner/GCP account has
-  been created for this project; `deploy/install.sh` is untested against a real box.
+- **VM not yet provisioned.** The Mac (launchd) is production for now. No Hetzner/GCP account has
+  been created for this project; `deploy/install.sh` is untested against a real box. The future
+  non-OCI VM will run the same code via systemd instead of launchd.
 - **Telegram token not set.** `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` are blank in `.env`
   (see `.env.example`) — `eqr digest` prints fine, but `--send` will fail until both are set.
