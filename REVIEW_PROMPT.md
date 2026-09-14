@@ -23,7 +23,7 @@ says "this function is too long".
 
 ## 1. Repository and access
 
-- **Repo:** `https://github.com/sumaer123/research-bot` (private, owner `sumaer123`)
+- **Repo:** `https://github.com/sumaer123/research-bot` (owner `sumaer123`)
 - **Default branch:** `main`. HEAD at time of writing: `8be2e88`
 - **Work branch for your deliverables:** create `claude/eqr-review-<short-slug>` off `main`.
   **Never push to `main`.** Open a **draft PR** when done.
