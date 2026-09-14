@@ -19,14 +19,15 @@
     {% else %}<p class="muted">no checks recorded</p>{% endif %}
   </div>
   <div class="card"><h2>Validation</h2>
-    {% if bts|length %}<table><tr><th>Sleeve</th><th>Run</th><th>Verdict</th><th>Range</th></tr>
+    {% if bts|length %}<table><tr><th>Sleeve</th><th>Run</th><th>Acceptance bar</th><th>Range</th></tr>
     {% for b in bts.head(6).itertuples() %}<tr><td>{{ b.sleeve }}</td><td><a href="/backtests/{{ b.run_id }}">{{ b.run_id }}</a></td>
-      <td><span class="pill {{ 'good' if b.verdict == 'VALIDATED' else ('bad' if b.verdict == 'NOT VALIDATED' else '') }}">{{ b.verdict }}</span></td><td class="muted">{{ b.start_date }} → {{ b.end_date }}</td></tr>{% endfor %}</table>
+      <td><span class="pill {{ 'good' if b.verdict == 'VALIDATED' else ('bad' if b.verdict == 'NOT VALIDATED' else '') }}">bar {{ 'PASSED' if b.verdict == 'VALIDATED' else ('FAILED' if b.verdict == 'NOT VALIDATED' else b.verdict) }}</span></td><td class="muted">{{ b.start_date }} → {{ b.end_date }}</td></tr>{% endfor %}</table>
     {% else %}<p class="muted">no backtests yet</p>{% endif %}
   </div>
 </div>
 {% for sl, tbl, ch in sleeves %}
-<h2>Sleeve {{ sl }} — {{ 'Compounders (monthly)' if sl == 'L' else 'Tactical (weekly)' }} {% if tbl|length %}<span class="muted">as of {{ tbl.as_of.iloc[0].date() }} · universe {{ tbl.universe_size.iloc[0] }} · regime {{ tbl.regime.iloc[0] }}</span>{% endif %}</h2>
+<h2>Sleeve {{ sl }} — {{ 'Compounders (monthly)' if sl == 'L' else 'Tactical (weekly)' }} <span class="pill {{ 'good' if claims[sl].state in ('BACKTEST_PASS', 'PROSPECTIVE_VALIDATED') else ('bad' if claims[sl].state == 'DIAGNOSTIC' else '') }}">{{ claims[sl].state }}</span> {% if tbl|length %}<span class="muted">as of {{ tbl.as_of.iloc[0].date() }} · universe {{ tbl.universe_size.iloc[0] }} · regime {{ tbl.regime.iloc[0] }}</span>{% endif %}</h2>
+{% if claims[sl].reasons %}<p class="muted">Claim held back by: {{ claims[sl].reasons|join(', ') }}</p>{% endif %}
 {% if ch.entries or ch.exits %}<p class="muted">Since {{ ch.prev }}: entries {{ ch.entries|join(', ') or '—' }} · exits {{ ch.exits|join(', ') or '—' }}</p>{% endif %}
 {% if tbl|length %}<div class="scroll"><table>
 <tr><th>#</th><th>Symbol</th><th>Name</th><th>Industry</th><th class="num">Score</th><th class="num">Weight</th><th class="num">Close</th><th class="num">Mcap ₹cr</th><th class="num">P/E</th><th class="num">12-1 mom</th><th class="num">Q</th><th class="num">V</th><th class="num">M</th><th class="num">LR</th></tr>

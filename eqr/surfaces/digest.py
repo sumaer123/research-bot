@@ -23,9 +23,10 @@ def build_digest(con, today: date | None = None) -> str:
         tbl = q.latest_ranks(con, sl)
         if tbl.empty:
             continue
-        v = con.execute("SELECT verdict FROM backtests WHERE sleeve = ? AND verdict IN ('VALIDATED','NOT VALIDATED') "
-                        "ORDER BY created_at DESC LIMIT 1", [sl]).fetchone()
-        tag = {"VALIDATED": "validated", "NOT VALIDATED": "NOT validated — diagnostic only"}.get(v[0] if v else "", "unvalidated")
+        from ..validate.claims import claim_state
+        state, reasons = claim_state(con, sl)
+        tag = {"BACKTEST_PASS": "backtest-pass", "PROSPECTIVE_VALIDATED": "prospective-validated",
+               "PROVISIONAL": "provisional", "DIAGNOSTIC": "diagnostic only"}[state.value]
         lines.append(f"\n<b>Sleeve {sl}</b> ({tag}) as of {ch['as_of']}: {len(tbl)} names")
         if ch["entries"]:
             lines.append("  ↑ in: " + ", ".join(ch["entries"]))

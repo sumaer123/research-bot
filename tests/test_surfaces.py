@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 
 from fastapi.testclient import TestClient
 
@@ -40,10 +40,25 @@ def test_web_pages_and_advisor(tmp_db, monkeypatch):
     j = r.json()
     assert r.status_code == 200 and j["status"] in ("OK", "STALE") and j["sleeve_L"]["rank"] >= 1
     assert j["sleeve_L"]["validated"] is False                  # nothing validated yet -> never claims edge
+    assert j["sleeve_L"]["claim_state"] == "DIAGNOSTIC"          # no validation run
+    assert ">VALIDATED<" not in c.get("/").text                 # no bare VALIDATED pill on any surface
     r = c.get("/advisor/v1/evidence/NOPE", headers={"Authorization": "Bearer secret"})
     assert r.json()["status"] == "UNKNOWN"
     r = c.get("/advisor/v1/ranks/L", headers={"Authorization": "Bearer secret"})
     assert len(r.json()["ranks"]) >= 5
+
+
+def test_claim_state_shows_provisional_not_validated_on_a_passing_backtest(tmp_db):
+    _prep(tmp_db)
+    tmp_db.execute("INSERT INTO backtests (run_id, sleeve, params, verdict, created_at) "
+                   "VALUES ('v1', 'L', '{}', 'VALIDATED', ?)", [datetime.now()])
+    j = advisor_evidence(tmp_db, "S05")
+    assert j["sleeve_L"]["claim_state"] == "PROVISIONAL" and j["sleeve_L"]["validated"] is False
+    assert "provisional" in build_digest(tmp_db)
+    tmp_db.close()
+    from eqr.surfaces.web.app import app
+    html = TestClient(app).get("/").text
+    assert "PROVISIONAL" in html and "bar PASSED" in html and ">VALIDATED<" not in html
 
 
 def test_digest_and_markdown(tmp_db):

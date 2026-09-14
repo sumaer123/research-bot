@@ -37,7 +37,7 @@ def write_backtest_report(con: duckdb.DuckDBPyConnection, res: BacktestResult, r
     s = res.stats
     md = [f"# {title}", "", f"Run `{run_id}` · {s['start']} → {s['end']} · capital ₹{res.config['capital']:,.0f}", "",
           "| Metric | Strategy | NIFTY 500 TR proxy |", "|---|---|---|",
-          f"| CAGR | {_pct(s['cagr'])} | {_pct(s.get('bench_cagr'))} |",
+          f"| CAGR (time-weighted) | {_pct(s['cagr'])} | {_pct(s.get('bench_cagr'))} |",
           f"| Sharpe (rf {res.config['rf_annual']:.0%}) | {_num(s['sharpe'])} | {_num(s.get('bench_sharpe'))} |",
           f"| Max drawdown (MTM) | {_pct(s['max_drawdown'])} | {_pct(s.get('bench_max_drawdown'))} |",
           f"| Volatility | {_pct(s['vol'])} | |", f"| Sortino | {_num(s['sortino'])} | |",
@@ -67,14 +67,18 @@ def write_walkforward_report(con: duckdb.DuckDBPyConnection, wf: dict, run_id: s
         r.equity.rename("equity").to_frame().join(r.bench_equity.rename("bench")).to_csv(out / f"equity_{k}.csv")
     (out / "walkforward.json").write_text(json.dumps(wf, indent=1, default=str))
     acc, o, d, h = wf["acceptance"], wf["oos"], wf["dsr"], wf["holdout"]
+    from .claims import state_for
+    state, reasons = state_for(acc["verdict"], forced=False, con=con, sleeve=wf["sleeve"])
+    reason_txt = f" ({', '.join(reasons)})" if reasons else ""
     md = [f"# Walk-forward validation — Sleeve {wf['sleeve']}", "",
           f"Run `{run_id}` · {wf['start']} → {wf['end']} · holdout from {wf['holdout_start']} · capital ₹{wf['capital']:,.0f} · "
           f"rf {wf.get('rf_annual', 0.06):.1%} · impact {wf['costs'].get('impact_k_bps')} bps · {len(wf['grid'])} pre-registered trials", "",
-          f"## Verdict: **{acc['verdict']}**", "", "| Check | Status | Detail |", "|---|---|---|"]
+          f"## Verdict: acceptance bar **{acc['verdict']}** · claim state **{state.value}**{reason_txt}", "",
+          "| Check | Status | Detail |", "|---|---|---|"]
     md += [f"| {c['check']} | {c['status']} | {c['detail']} |" for c in acc["checks"]]
     md += ["", "## Out-of-sample (stitched folds, net of costs)", "",
            "| Metric | Strategy | Index |", "|---|---|---|",
-           f"| CAGR | {_pct(o.get('cagr'))} | {_pct(o.get('bench_cagr'))} |",
+           f"| CAGR (time-weighted) | {_pct(o.get('cagr'))} | {_pct(o.get('bench_cagr'))} |",
            f"| Sharpe | {_num(o.get('sharpe'))} | {_num(o.get('bench_sharpe'))} |",
            f"| Max drawdown | {_pct(o.get('max_drawdown'))} | {_pct(o.get('bench_max_drawdown'))} |",
            f"| Information ratio | {_num(o.get('information_ratio'))} | |",

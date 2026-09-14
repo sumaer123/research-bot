@@ -121,16 +121,17 @@ def advisor_evidence(con, symbol: str) -> dict:
     reg = regime_now(con)
     if reg:
         out["regime"] = {"label": reg["regime"], "exposure": reg["exposure"], "date": str(reg["trade_date"])}
+    from ..validate.claims import claim_state, is_validated
     for sl in ("L", "S"):
         as_of = con.execute("SELECT max(as_of) FROM ranks WHERE sleeve = ?", [sl]).fetchone()[0]
         row = con.execute("SELECT rank, score, weight, universe_size FROM ranks WHERE sleeve = ? AND as_of = ? AND symbol = ?",
                           [sl, as_of, symbol]).fetchone() if as_of else None
-        verdict = con.execute("SELECT verdict FROM backtests WHERE sleeve = ? AND verdict IN ('VALIDATED','NOT VALIDATED') ORDER BY created_at DESC LIMIT 1", [sl]).fetchone()
+        state, reasons = claim_state(con, sl)
         out[f"sleeve_{sl}"] = {"as_of": str(as_of) if as_of else None,
                                "rank": row[0] if row else None, "score": round(row[1], 4) if row else None,
                                "in_portfolio": bool(row and row[2] > 0), "universe_size": row[3] if row else None,
                                "percentile": round(1 - row[0] / row[3], 3) if row and row[3] else None,
-                               "validated": (verdict[0] == "VALIDATED") if verdict else False}
+                               "claim_state": state.value, "reasons": reasons, "validated": is_validated(state)}
     f = con.execute("SELECT in_asm, in_gsm, in_fo_ban, altman_zpp, promoter_chg_1y, stmt_age_days, rankable FROM features WHERE symbol = ? ORDER BY as_of DESC LIMIT 1", [symbol]).fetchone()
     if f:
         if f[0]:

@@ -32,9 +32,12 @@ def db():
 
 @app.get("/", response_class=HTMLResponse)
 def dashboard(request: Request, con=Depends(db)):
+    from ...validate.claims import claim_state
     sleeves = [(sl, q.latest_ranks(con, sl), q.rank_changes(con, sl)) for sl in ("L", "S")]
+    claims = {sl: {"state": (st := claim_state(con, sl))[0].value, "reasons": st[1]} for sl in ("L", "S")}
     return templates.TemplateResponse(request, "dashboard.html", {
-        "regime": q.regime_now(con), "fr": q.freshness(con), "bts": q.backtests(con), "sleeves": sleeves})
+        "regime": q.regime_now(con), "fr": q.freshness(con), "bts": q.backtests(con),
+        "sleeves": sleeves, "claims": claims})
 
 
 @app.get("/ranks", response_class=HTMLResponse)
