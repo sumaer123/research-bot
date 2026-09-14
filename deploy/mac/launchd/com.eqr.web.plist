@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- eqr web dashboard + advisor API on the Mac (twin of systemd/eqr-web.service).
+       __ROOT__ and __LOGS__ are filled in by deploy/mac/install-mac.sh. -->
+  <key>Label</key><string>com.eqr.web</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__ROOT__/.venv/bin/eqr</string>
+    <string>web</string>
+    <string>--host</string><string>127.0.0.1</string>
+    <string>--port</string><string>8801</string>
+  </array>
+  <key>WorkingDirectory</key><string>__ROOT__</string>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>5</integer>
+  <key>StandardOutPath</key><string>__LOGS__/web.log</string>
+  <key>StandardErrorPath</key><string>__LOGS__/web.err</string>
+</dict>
+</plist>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- eqr Telegram digest at 07:30 local (twin of eqr-digest.timer). -->
+  <key>Label</key><string>com.eqr.digest</string>
+  <key>ProgramArguments</key>
+  <array><string>__ROOT__/deploy/mac/digest.sh</string></array>
+  <key>WorkingDirectory</key><string>__ROOT__</string>
+  <key>StartCalendarInterval</key>
+  <dict><key>Hour</key><integer>7</integer><key>Minute</key><integer>30</integer></dict>
+  <key>StandardOutPath</key><string>__LOGS__/digest.log</string>
+  <key>StandardErrorPath</key><string>__LOGS__/digest.err</string>
+</dict>
+</plist>

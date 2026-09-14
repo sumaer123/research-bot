@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- eqr EOD refresh at 19:45 local (the Mac keeps IST) every day, weekends
+       included so special sessions are caught (twin of eqr-refresh.timer).
+       A run missed while the Mac slept fires once on wake. -->
+  <key>Label</key><string>com.eqr.refresh</string>
+  <key>ProgramArguments</key>
+  <array><string>__ROOT__/deploy/mac/refresh.sh</string></array>
+  <key>WorkingDirectory</key><string>__ROOT__</string>
+  <key>StartCalendarInterval</key>
+  <dict><key>Hour</key><integer>19</integer><key>Minute</key><integer>45</integer></dict>
+  <key>StandardOutPath</key><string>__LOGS__/refresh.log</string>
+  <key>StandardErrorPath</key><string>__LOGS__/refresh.err</string>
+</dict>
+</plist>
