@@ -59,6 +59,11 @@ def build_pack(con: duckdb.DuckDBPyConnection, symbol: str, as_of: Optional[date
                          [as_of]).df()
     docs = con.execute("""SELECT doc_id, kind, title, period, visible_from, text_path, pages FROM documents
                           WHERE symbol = ? AND visible_from <= ? ORDER BY visible_from DESC""", [symbol, as_of]).df()
+    # most useful first: transcripts, annual report, presentation, results; skip empty extractions
+    prio = {"transcript": 0, "annual_report": 1, "presentation": 2, "results": 3, "rating": 4, "other": 5}
+    docs = docs[docs.pages.fillna(0) >= 2].copy()
+    docs["prio"] = docs.kind.map(prio).fillna(9)
+    docs = docs.sort_values(["prio", "visible_from"], ascending=[True, False])
     chosen, seen_kind = [], {}
     for r in docs.itertuples():
         seen_kind[r.kind] = seen_kind.get(r.kind, 0) + 1

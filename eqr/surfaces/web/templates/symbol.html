@@ -3,7 +3,7 @@
 <h1>{{ p.symbol }} <span class="muted">{{ p.inst.get('name', '') }} · {{ p.inst.get('industry') or p.meta.get('industry') or '' }}</span></h1>
 <div class="grid">
   <div class="card"><h2>Snapshot</h2><div class="kv">
-    <div>Close</div><div>{{ '%.2f' % p.feat.close if p.feat.get('close') == p.feat.get('close') and p.feat.get('close') is not none else '' }} <span class="muted">(features {{ p.feat.get('as_of') }})</span></div>
+    <div>Close</div><div>{{ '%.2f' % p.feat.close if p.feat.get('close') == p.feat.get('close') and p.feat.get('close') is not none else '' }} <span class="muted">(features {{ p.feat.as_of.date() if p.feat.get("as_of") is not none else "" }})</span></div>
     <div>Market cap</div><div>{{ '₹{:,.0f} cr'.format(p.feat.mcap_cr) if p.feat.get('mcap_cr') == p.feat.get('mcap_cr') and p.feat.get('mcap_cr') is not none else '' }}</div>
     <div>P/E (TTM) · P/B</div><div>{{ '%.1f' % p.feat.pe_ttm if p.feat.get('pe_ttm') == p.feat.get('pe_ttm') and p.feat.get('pe_ttm') is not none else 'n/a' }} · {{ '%.2f' % p.feat.pb if p.feat.get('pb') == p.feat.get('pb') and p.feat.get('pb') is not none else 'n/a' }}</div>
     <div>ROE · ROCE</div><div>{{ '%.1f%%' % (p.feat.roe * 100) if p.feat.get('roe') == p.feat.get('roe') and p.feat.get('roe') is not none else 'n/a' }} · {{ '%.1f%%' % (p.feat.roce * 100) if p.feat.get('roce') == p.feat.get('roce') and p.feat.get('roce') is not none else 'n/a' }}</div>

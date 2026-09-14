@@ -107,9 +107,6 @@ def doctor():
         typer.echo(f"{c[0]:<22} {c[1]:<8} {c[2] or '':<5} {c[3]}")
 
 
-if __name__ == "__main__":
-    app()
-
 
 @app.command()
 def fundamentals(symbols: Optional[str] = typer.Option(None, "--symbols", help="comma-separated; default: EQ universe"),
@@ -222,18 +219,24 @@ def features(as_of: Optional[str] = typer.Option(None, "--as-of"),
 
 @app.command()
 def rank(sleeve: str = typer.Option("L", "--sleeve"), as_of: Optional[str] = typer.Option(None, "--as-of"),
-         top: int = typer.Option(30, "--top")):
-    """Rank a sleeve on the latest (or given) feature date and store the list."""
+         top: Optional[int] = typer.Option(None, "--top", help="override N (default: the validated run's choice)"),
+         variant: Optional[str] = typer.Option(None, "--variant", help="override weights variant")):
+    """Rank a sleeve on the latest (or given) feature date with the configuration the latest
+    walk-forward run selected; store the list."""
     from .store import connect
-    from .strategy.rank import rank_sleeve
+    from .strategy.rank import rank_sleeve, validated_config
     from .strategy.sleeves import SleeveConfig
     con = connect()
     try:
         d = _d(as_of) or con.execute("SELECT max(as_of) FROM features").fetchone()[0]
-        cfg = SleeveConfig.L(top_n=top) if sleeve.upper() == "L" else SleeveConfig.S(top_n=top)
+        cfg, verdict = validated_config(con, sleeve.upper())
+        if top or variant:
+            mk = SleeveConfig.L if sleeve.upper() == "L" else SleeveConfig.S
+            cfg = mk(top_n=top or cfg.top_n, variant=variant or cfg.variant)
         tbl = rank_sleeve(con, cfg, d)
         held = tbl[tbl.weight > 0]
-        typer.echo(f"{sleeve} as of {d}: regime {tbl.regime.iloc[0] if len(tbl) else '?'}, universe {tbl.universe_size.iloc[0] if len(tbl) else 0}")
+        typer.echo(f"{sleeve} as of {d}: config N{cfg.top_n} {cfg.variant} (last verdict {verdict}), "
+                   f"regime {tbl.regime.iloc[0] if len(tbl) else '?'}, universe {tbl.universe_size.iloc[0] if len(tbl) else 0}")
         for r in held.itertuples():
             typer.echo(f"{r.rank:>4} {r.symbol:<14} score {r.score:+.3f} weight {r.weight:.3f}")
     finally:
@@ -359,3 +362,7 @@ def dossier(symbol: str, as_of: Optional[str] = typer.Option(None, "--as-of"), m
         typer.echo(json.dumps(run_dossier(con, symbol.upper(), _d(as_of), model=model, dry_run=dry_run), indent=1))
     finally:
         con.close()
+
+
+if __name__ == "__main__":
+    app()

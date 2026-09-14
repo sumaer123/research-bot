@@ -42,3 +42,24 @@ def rank_sleeve(con: duckdb.DuckDBPyConnection, cfg: SleeveConfig, as_of: date,
         con.execute("DELETE FROM ranks WHERE as_of = ? AND sleeve = ?", [as_of, cfg.name])
         upsert(con, "ranks", tbl)
     return tbl
+
+
+def validated_config(con: duckdb.DuckDBPyConnection, sleeve: str) -> tuple[SleeveConfig, str]:
+    """The configuration selected by the latest walk-forward run for this sleeve, and its
+    verdict. Falls back to the default configuration (verdict 'NONE') when no run exists."""
+    import json
+    import re
+    row = con.execute("""SELECT verdict, report_path FROM backtests WHERE sleeve = ? AND verdict IN ('VALIDATED','NOT VALIDATED')
+                         ORDER BY created_at DESC LIMIT 1""", [sleeve]).fetchone()
+    mk = SleeveConfig.L if sleeve == "L" else SleeveConfig.S
+    if not row:
+        return mk(), "NONE"
+    try:
+        wf = json.loads((__import__("pathlib").Path(row[1]) / "walkforward.json").read_text())
+        key = wf["holdout"]["selected"]                       # e.g. L-N20-momentum_tilt-T1cr
+        m = re.match(r"^[LS]-N(\d+)-([a-z_]+)-T(\d+)cr$", key)
+        cfg = mk(top_n=int(m.group(1)), variant=m.group(2))
+        cfg.min_turnover_inr = float(m.group(3)) * 1e7
+        return cfg, row[0]
+    except Exception:                                          # noqa: BLE001 - a broken report never blocks ranking
+        return mk(), row[0]

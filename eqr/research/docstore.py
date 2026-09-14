@@ -38,22 +38,22 @@ def extract_text(pdf_path: Path, max_pages: int = 400) -> tuple[str, int]:
         return f"[extraction failed: {e}]", 0
 
 
-def sync_symbol_documents(con: duckdb.DuckDBPyConnection, api: NseApi, symbol: str, max_docs: int = 12,
+def sync_symbol_documents(con: duckdb.DuckDBPyConnection, api: NseApi, symbol: str, max_docs: int = 14,
                           kinds: set[str] = KEEP_KINDS, log=None) -> dict:
     """Download the most recent filings of the kept kinds that are not yet stored."""
     s = settings()
     ann = con.execute("""SELECT symbol, ann_dt, subject, description, attachment_url FROM announcements
                          WHERE symbol = ? AND attachment_url IS NOT NULL ORDER BY ann_dt DESC LIMIT 400""", [symbol]).df()
     cands = []
+    ar = fetch_annual_reports(api, symbol, log)                      # annual reports first: the deepest source
+    for r in (ar.to_dict("records") if not ar.empty else []):
+        cands.append({"symbol": symbol, "kind": "annual_report", "url": r["url"], "title": r["title"],
+                      "period": r["period"], "visible_from": r["visible_from"]})
     for r in ann.itertuples():
         kind = classify_announcement(r.subject, r.description)
         if kind in kinds and str(r.attachment_url).lower().endswith(".pdf"):
             cands.append({"symbol": symbol, "kind": kind, "url": r.attachment_url, "title": (r.description or r.subject)[:200],
                           "period": None, "visible_from": pd.Timestamp(r.ann_dt).date()})
-    ar = fetch_annual_reports(api, symbol, log)
-    for r in (ar.to_dict("records") if not ar.empty else []):
-        cands.append({"symbol": symbol, "kind": "annual_report", "url": r["url"], "title": r["title"],
-                      "period": r["period"], "visible_from": r["visible_from"]})
     have = {r[0] for r in con.execute("SELECT doc_id FROM documents WHERE symbol = ?", [symbol]).fetchall()}
     out = {"downloaded": 0, "skipped": 0, "failed": 0}
     per_kind: dict[str, int] = {}

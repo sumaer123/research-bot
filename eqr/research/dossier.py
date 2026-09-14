@@ -46,11 +46,15 @@ def _call_claude(prompt: str, model: str) -> str:
     cli = shutil.which("claude")
     if not cli:
         raise RuntimeError("neither ANTHROPIC_API_KEY nor the `claude` CLI is available")
-    env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
-    r = subprocess.run([cli, "-p", "--model", model, "--output-format", "text", "--tools", ""],
+    # a clean environment: the desktop app's proxied auth and nested-session markers must not leak
+    env = {k: v for k, v in os.environ.items()
+           if not (k.startswith("CLAUDE") or k.startswith("ANTHROPIC"))}
+    r = subprocess.run([cli, "-p", "--model", model, "--output-format", "text", "--bare", "--tools", ""],
                        input=prompt, capture_output=True, text=True, timeout=900, env=env)
     if r.returncode != 0:
-        raise RuntimeError(f"claude CLI failed: {r.stderr[:500]}")
+        err = "\n".join(l for l in r.stderr.splitlines() if "Permission allow rule" not in l and "Use Edit(" not in l)
+        raise RuntimeError(f"claude CLI failed (run `eqr dossier` from a terminal where `claude` is logged in, "
+                           f"or set ANTHROPIC_API_KEY): {err[:400]}")
     return r.stdout
 
 
