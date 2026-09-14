@@ -48,10 +48,27 @@ def test_pack_and_dossier_roundtrip(tmp_db, monkeypatch, tmp_path):
     good = _good("S05", str(as_of))
     out = run_dossier(tmp_db, "S05", as_of, response_text="Here you go:\n" + json.dumps(good))
     assert out["status"] == "STORED"
-    row = tmp_db.execute("SELECT rating, confidence FROM dossiers WHERE symbol = 'S05'").fetchone()
+    row = tmp_db.execute("SELECT rating, confidence FROM dossiers_current WHERE symbol = 'S05'").fetchone()
     assert row == ("BUY", 0.6)
     bad = run_dossier(tmp_db, "S05", as_of, response_text=json.dumps(dict(good, rating="MOON")))
     assert bad["status"] == "REJECTED"
     md = render_markdown(good)
     assert "## Thesis" in md and "table:peers" in md
     assert _extract_json("noise {\"a\": 1} tail") == {"a": 1}
+
+
+def test_dossier_storage_keys_on_run_id_and_keeps_rejected_runs(tmp_db, monkeypatch, tmp_path):
+    monkeypatch.setenv("EQR_DATA_DIR", str(tmp_path / "data"))
+    syms, days = make_synthetic_market(tmp_db, n_symbols=12, n_days=500)
+    refresh_factors(tmp_db)
+    as_of = days[-1].date()
+    build_features(tmp_db, as_of, min_turnover_inr=1.0)
+    good = _good("S05", str(as_of))
+    out = run_dossier(tmp_db, "S05", as_of, response_text="ok\n" + json.dumps(good))
+    assert out["status"] == "STORED" and out["run_id"]
+    bad = run_dossier(tmp_db, "S05", as_of, response_text=json.dumps(dict(good, rating="MOON")))
+    assert bad["status"] == "REJECTED" and bad["run_id"] != out["run_id"]
+    counts = dict(tmp_db.execute("SELECT status, count(*) FROM dossiers WHERE symbol = 'S05' GROUP BY status").fetchall())
+    assert counts == {"STORED": 1, "REJECTED": 1}
+    assert tmp_db.execute("SELECT rating, confidence FROM dossiers_current WHERE symbol = 'S05'").fetchall() == [("BUY", 0.6)]
+    assert tmp_db.execute("SELECT errors_json FROM dossiers WHERE run_id = ?", [bad["run_id"]]).fetchone()[0]

@@ -69,7 +69,7 @@ def symbol_page(con, symbol: str) -> dict:
     a = a.pivot_table(index=["stmt", "line_item"], columns="period_end", values="value").iloc[:, -6:] if len(a) else pd.DataFrame()
     sh = con.execute("SELECT period_end, holder, pct FROM shareholding WHERE symbol = ? ORDER BY period_end", [symbol]).df()
     sh = sh.pivot_table(index="holder", columns="period_end", values="pct").iloc[:, -8:] if len(sh) else pd.DataFrame()
-    dos = con.execute("SELECT as_of, model, rating, confidence, markdown FROM dossiers WHERE symbol = ? ORDER BY as_of DESC LIMIT 1", [symbol]).df()
+    dos = con.execute("SELECT as_of, model, rating, confidence, markdown FROM dossiers_current WHERE symbol = ? ORDER BY as_of DESC LIMIT 1", [symbol]).df()
     docs = con.execute("SELECT doc_id, kind, title, period, visible_from, pages FROM documents WHERE symbol = ? ORDER BY visible_from DESC LIMIT 20", [symbol]).df()
     ann = con.execute("SELECT ann_dt, subject, description FROM announcements WHERE symbol = ? ORDER BY ann_dt DESC LIMIT 15", [symbol]).df()
     sv = con.execute("SELECT as_of, list_name, stage FROM surveillance WHERE symbol = ? ORDER BY as_of DESC LIMIT 5", [symbol]).df()
@@ -147,7 +147,7 @@ def advisor_evidence(con, symbol: str) -> dict:
             out["flags"].append("STALE_STATEMENTS")
         if not f[6]:
             out["flags"].append("NOT_RANKABLE")
-    d = con.execute("SELECT as_of, rating, confidence FROM dossiers WHERE symbol = ? ORDER BY as_of DESC LIMIT 1", [symbol]).fetchone()
+    d = con.execute("SELECT as_of, rating, confidence FROM dossiers_current WHERE symbol = ? ORDER BY as_of DESC LIMIT 1", [symbol]).fetchone()
     out["dossier"] = {"as_of": str(d[0]), "rating": d[1], "confidence": d[2]} if d else None
     if out["freshness_days"] is None or out["as_of"] is None:
         out["status"] = "UNKNOWN"

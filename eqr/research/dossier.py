@@ -8,6 +8,7 @@ import os
 import re
 import shutil
 import subprocess
+import uuid
 from datetime import date, datetime
 from pathlib import Path
 from typing import Optional
@@ -17,6 +18,8 @@ import duckdb
 from ..config import settings
 from .pack import build_pack
 from .schema import validate_dossier
+
+DOSSIER_SCHEMA_VERSION = 1
 
 SYSTEM = """You are an equity research analyst writing an evidence-bound dossier on an Indian listed company.
 Rules: use ONLY the pack provided. Every claim, assessment and catalyst must carry citations to doc:<doc_id>
@@ -92,21 +95,31 @@ def run_dossier(con: duckdb.DuckDBPyConnection, symbol: str, as_of: Optional[dat
     if dry_run:
         return {"status": "DRY_RUN", "prompt_path": str(path / "prompt.txt"), "prompt_chars": len(prompt),
                 "documents": len(pack["documents"])}
+    run_id = f"dossier-{symbol}-{pack['as_of']}-{uuid.uuid4().hex[:8]}"
+
+    def _reject(errors: list) -> dict:
+        (path / "validation_errors.json").write_text(json.dumps(errors, indent=1))
+        con.execute("INSERT INTO dossiers (run_id, symbol, as_of, model, status, errors_json, created_at) "
+                    "VALUES (?, ?, ?, ?, 'REJECTED', ?, ?)",
+                    [run_id, symbol, pack["as_of"], model, json.dumps(errors), datetime.now()])
+        return {"status": "REJECTED", "run_id": run_id, "errors": errors}
+
     text = response_text if response_text is not None else _call_claude(prompt, model)
     (path / "response.txt").write_text(text)
     try:
         obj = _extract_json(text)
     except ValueError as e:
-        return {"status": "REJECTED", "errors": [str(e)]}
+        return _reject([str(e)])
     allowed = {d["doc_id"] for d in pack["documents"]}
     errors = validate_dossier(obj, allowed)
     if errors:
-        (path / "validation_errors.json").write_text(json.dumps(errors, indent=1))
-        return {"status": "REJECTED", "errors": errors}
+        return _reject(errors)
     md = render_markdown(obj)
     (path / "dossier.md").write_text(md)
     con.execute(
-        "INSERT OR REPLACE INTO dossiers (symbol, as_of, model, rating, confidence, json, markdown, created_at)"
-        " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        [symbol, obj["as_of"], model, obj["rating"], float(obj["confidence"]), json.dumps(obj), md, datetime.now()])
-    return {"status": "STORED", "rating": obj["rating"], "confidence": obj["confidence"], "path": str(path / "dossier.md")}
+        "INSERT INTO dossiers (run_id, symbol, as_of, model, rating, confidence, json, markdown, status, schema_version, created_at)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'STORED', ?, ?)",
+        [run_id, symbol, obj["as_of"], model, obj["rating"], float(obj["confidence"]), json.dumps(obj), md,
+         DOSSIER_SCHEMA_VERSION, datetime.now()])
+    return {"status": "STORED", "run_id": run_id, "rating": obj["rating"], "confidence": obj["confidence"],
+            "path": str(path / "dossier.md")}

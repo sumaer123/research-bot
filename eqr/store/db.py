@@ -28,9 +28,48 @@ def connect(path: Optional[Path] = None, read_only: bool = False) -> duckdb.Duck
     return con
 
 
+# Durable tables whose primary key was corrected after the first schemas shipped. A table that
+# already exists with the wrong PK (DuckDB cannot ALTER a PK) is dropped and recreated ONLY when
+# empty; a non-empty mismatch is a real migration and must fail loudly rather than lose rows.
+_EXPECTED_PK = {
+    "dossiers": ["run_id"],
+    "fund_metrics": ["as_of", "symbol", "metric", "engine_version"],
+    "dossier_claims": ["run_id", "claim_id"],
+}
+
+
+def _table_exists(con: duckdb.DuckDBPyConnection, table: str) -> bool:
+    return con.execute("SELECT count(*) FROM information_schema.tables "
+                       "WHERE table_schema = 'main' AND table_name = ? AND table_type = 'BASE TABLE'",
+                       [table]).fetchone()[0] > 0
+
+
+def _reconcile_keys(con: duckdb.DuckDBPyConnection) -> None:
+    to_recreate = []
+    for table, pk in _EXPECTED_PK.items():
+        if not _table_exists(con, table):
+            continue
+        current = _primary_key(con, table)
+        if current == pk:
+            continue
+        n = con.execute(f'SELECT count(*) FROM "{table}"').fetchone()[0]
+        if n:
+            raise RuntimeError(f"{table} has {n} rows but PK {current} != expected {pk}; "
+                               "refusing to auto-recreate — needs an explicit migration")
+        to_recreate.append(table)
+    if not to_recreate:
+        return
+    con.execute("DROP VIEW IF EXISTS dossiers_current")
+    for table in to_recreate:
+        con.execute(f'DROP TABLE IF EXISTS "{table}"')
+    con.execute(SCHEMA_PATH.read_text())        # CREATE IF NOT EXISTS recreates only the dropped tables
+    con.execute(MIGRATIONS_PATH.read_text())
+
+
 def init_schema(con: duckdb.DuckDBPyConnection) -> None:
     con.execute(SCHEMA_PATH.read_text())
     con.execute(MIGRATIONS_PATH.read_text())
+    _reconcile_keys(con)
 
 
 def table_columns(con: duckdb.DuckDBPyConnection, table: str) -> list[str]:

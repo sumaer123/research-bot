@@ -120,9 +120,12 @@ CREATE TABLE IF NOT EXISTS backtests (
   params VARCHAR, metrics VARCHAR, acceptance VARCHAR, verdict VARCHAR,
   created_at TIMESTAMP, report_path VARCHAR);
 
+-- One row per dossier RUN (STORED or REJECTED); run_id is the identity so a rejected run,
+-- a re-run and a later revision all coexist. Latest STORED per (symbol, as_of) = dossiers_current view.
 CREATE TABLE IF NOT EXISTS dossiers (
-  symbol VARCHAR, as_of DATE, model VARCHAR, rating VARCHAR, confidence DOUBLE,
-  json VARCHAR, markdown VARCHAR, created_at TIMESTAMP, PRIMARY KEY (symbol, as_of));
+  run_id VARCHAR PRIMARY KEY, symbol VARCHAR, as_of DATE, model VARCHAR, rating VARCHAR, confidence DOUBLE,
+  json VARCHAR, markdown VARCHAR, status VARCHAR, schema_version INTEGER, engine_rating VARCHAR,
+  llm_view VARCHAR, errors_json VARCHAR, created_at TIMESTAMP);
 
 CREATE TABLE IF NOT EXISTS holidays (trade_date DATE PRIMARY KEY, note VARCHAR, seen_at TIMESTAMP);
 
@@ -183,7 +186,7 @@ CREATE TABLE IF NOT EXISTS doc_sections (
 CREATE TABLE IF NOT EXISTS fund_metrics (
   as_of DATE, symbol VARCHAR, metric VARCHAR, value DOUBLE, status VARCHAR, unit VARCHAR,
   source_table VARCHAR, source_keys VARCHAR, inputs_as_of DATE, note VARCHAR, engine_version VARCHAR,
-  PRIMARY KEY (as_of, symbol, metric));
+  PRIMARY KEY (as_of, symbol, metric, engine_version));
 
 -- Phase 5: graph (edge identity = src,type,dst,evidence; lanes = derived_by)
 CREATE TABLE IF NOT EXISTS graph_nodes (
@@ -221,9 +224,9 @@ CREATE TABLE IF NOT EXISTS research_runs (
   passes_json VARCHAR, input_tokens BIGINT, output_tokens BIGINT, cache_read_tokens BIGINT, cost_usd DOUBLE,
   batch_id VARCHAR, custom_id VARCHAR, dossier_version INTEGER, started_at TIMESTAMP, ended_at TIMESTAMP, error VARCHAR);
 CREATE TABLE IF NOT EXISTS dossier_claims (
-  symbol VARCHAR, as_of DATE, claim_id VARCHAR, section VARCHAR, text VARCHAR, citations_json VARCHAR,
+  run_id VARCHAR, claim_id VARCHAR, symbol VARCHAR, as_of DATE, section VARCHAR, text VARCHAR, citations_json VARCHAR,
   quote VARCHAR, table_ref_json VARCHAR, verified BOOLEAN, verify_method VARCHAR, verify_score DOUBLE,
-  verifier_note VARCHAR, run_id VARCHAR, PRIMARY KEY (symbol, as_of, claim_id));
+  verifier_note VARCHAR, PRIMARY KEY (run_id, claim_id));
 CREATE TABLE IF NOT EXISTS web_sources (
   src_id VARCHAR PRIMARY KEY, symbol VARCHAR, run_id VARCHAR, url VARCHAR, title VARCHAR, published DATE,
   source_kind VARCHAR, sha256 VARCHAR, text_path VARCHAR, fetched_at TIMESTAMP, as_of DATE, visible_from DATE);
