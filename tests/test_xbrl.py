@@ -310,32 +310,47 @@ def test_visible_from_is_filing_dt(tmp_db, q2018):
     assert row[1] == date(2018, 5, 15)
 
 
-def test_first_seen_wins_and_revision_logged(tmp_db, q2018):
+def test_first_seen_wins_and_revision_logged_per_period(tmp_db, q2018):
+    """RevenueFromOperations exists in BOTH the quarter (OneD) and YTD (FourD)
+    contexts -> two primary rows (distinct period_start). Changing BOTH on reload
+    must produce EXACTLY 2 revisions, one per period_start, each carrying that
+    period's new value, while both primary rows keep their first-seen value."""
     load_parsed_xbrl(tmp_db, "TESTCO", q2018, date(2018, 5, 15), "https://x/v1.xml")
-    primary = tmp_db.execute(
-        "SELECT value FROM statements_xbrl WHERE symbol='TESTCO' AND item='revenue' "
-        "AND period_kind='Q'").fetchone()[0]
 
-    # Re-load the SAME period with a changed revenue value
+    # both primary (first-seen) values, keyed by period_start
+    primaries = dict(tmp_db.execute(
+        "SELECT period_start, value FROM statements_xbrl WHERE symbol='TESTCO' "
+        "AND tag='RevenueFromOperations' AND kind='D' AND period_end='2018-03-31'"
+    ).fetchall())
+    assert primaries == {date(2018, 1, 1): pytest.approx(1000.0),      # Q4: 100000 Lakhs/100
+                         date(2017, 4, 1): pytest.approx(3800.0)}      # FY: 380000 Lakhs/100
+
+    # Re-load the SAME periods with a changed value in EACH context
     revised_parsed = _load("xbrl_q_2018.xml")
     for f in revised_parsed.facts:
         if f.tag == "RevenueFromOperations" and f.context_ref == "OneD":
-            f.value = 110000.0   # was 100000 Lakhs
+            f.value = 110000.0   # was 100000 -> 1100 cr
+        elif f.tag == "RevenueFromOperations" and f.context_ref == "FourD":
+            f.value = 400000.0   # was 380000 -> 4000 cr
     result = load_parsed_xbrl(tmp_db, "TESTCO", revised_parsed, date(2018, 8, 1),
                               "https://x/v2.xml")
 
-    # primary row unchanged (first-seen wins)
-    after = tmp_db.execute(
-        "SELECT value FROM statements_xbrl WHERE symbol='TESTCO' AND item='revenue' "
-        "AND period_kind='Q'").fetchone()[0]
-    assert after == primary == pytest.approx(1000.0)
+    # both primary rows unchanged (first-seen wins), still keyed by period_start
+    after = dict(tmp_db.execute(
+        "SELECT period_start, value FROM statements_xbrl WHERE symbol='TESTCO' "
+        "AND tag='RevenueFromOperations' AND kind='D' AND period_end='2018-03-31'"
+    ).fetchall())
+    assert after == primaries
 
-    # exactly one revision row for that fact
-    revs = tmp_db.execute(
-        "SELECT value FROM statements_xbrl_revisions WHERE symbol='TESTCO' AND tag='RevenueFromOperations' "
-        "AND kind='D' AND period_end='2018-03-31'").fetchall()
-    assert len(revs) == 1
-    assert revs[0][0] == pytest.approx(1100.0)   # 110000 Lakhs /100
+    # EXACTLY two revisions -- one per period_start -- each with that period's new value
+    revs = dict(tmp_db.execute(
+        "SELECT period_start, value FROM statements_xbrl_revisions WHERE symbol='TESTCO' "
+        "AND tag='RevenueFromOperations' AND kind='D' AND period_end='2018-03-31'"
+    ).fetchall())
+    assert len(revs) == 2, "one revision per (period_end, period_start) that changed"
+    assert revs == {date(2018, 1, 1): pytest.approx(1100.0),
+                    date(2017, 4, 1): pytest.approx(4000.0)}
+    assert result["revisions"] == 2   # loader's own accounting agrees
 
     # filing flagged revised
     assert result["revised"] is True
@@ -343,6 +358,25 @@ def test_first_seen_wins_and_revision_logged(tmp_db, q2018):
         "SELECT revised FROM xbrl_filings WHERE symbol='TESTCO' AND xbrl_url='https://x/v2.xml'"
     ).fetchone()[0]
     assert flag is True
+
+
+def test_single_period_tag_logs_exactly_one_revision(tmp_db, q2018):
+    """A tag present in only ONE context (OtherIncome -> OneD only) logs exactly
+    one revision when its value changes -- pins the count for the single-row case."""
+    load_parsed_xbrl(tmp_db, "SOLOCO", q2018, date(2018, 5, 15), "https://x/v1.xml")
+    revised = _load("xbrl_q_2018.xml")
+    changed = 0
+    for f in revised.facts:
+        if f.tag == "OtherIncome":
+            f.value = 3000.0   # was 2500 Lakhs
+            changed += 1
+    assert changed == 1, "fixture guard: OtherIncome must appear in exactly one context"
+    result = load_parsed_xbrl(tmp_db, "SOLOCO", revised, date(2018, 8, 1), "https://x/v2.xml")
+    revs = tmp_db.execute(
+        "SELECT count(*) FROM statements_xbrl_revisions WHERE symbol='SOLOCO' AND tag='OtherIncome'"
+    ).fetchone()[0]
+    assert revs == 1
+    assert result["revisions"] == 1
 
 
 def test_quarter_and_ytd_both_persist(tmp_db, q2018):
