@@ -111,9 +111,10 @@ before trusting the headline number:
 
 **Sleeve S: NOT VALIDATED.** OOS Sharpe -0.22, IR -0.92, deflated-Sharpe p = 0.855; turnover
 ~2,000%/yr drives costs to 1,180-1,360 bps/yr, which erases any signal the weekly design has. It
-is never exposed to Project Upstox as anything but a diagnostic line. The next pre-registered
-experiment is a hold-period discipline (minimum four weeks, exit on stop or rank beyond 3N), not
-a change to the signal. Full fold-by-fold detail for both sleeves: `docs/VALIDATION.md`.
+is never exposed to Project Upstox as anything but a diagnostic line. An exploratory, post-hoc
+minimum-hold rule improved turnover sharply but still only matched the index after costs; the
+next pre-registered experiment is 8-12 week holds with a signal that actually clears the cost
+line. Full fold-by-fold detail for both sleeves: `docs/VALIDATION.md`.
 
 ## The advisor contract (for Project Upstox, later — R6)
 

@@ -92,9 +92,14 @@ own docs, not here.
   gap means fetching statements for the ~450 delisted names by their BSE code — not started.
 - **Sleeve S redesign hypothesis.** Sleeve S failed validation (NOT VALIDATED, see
   `docs/VALIDATION.md`) because its weekly design churns the entire book every week (turnover
-  ~2,000%/yr, costs 1,180-1,360 bps/yr) — the next pre-registered experiment is a hold-period
-  discipline (minimum four weeks, exit only on a stop or falling past rank 3N), not a new signal.
-  Not started; Sleeve S stays a diagnostic line only until it passes a fresh, pre-registered run.
+  ~2,000%/yr, costs ~1,180 bps/yr). An exploratory, post-hoc (not pre-registered, not validated)
+  run of a minimum-hold rule — 20 sessions minimum, hold while inside 3N, no trims, full period
+  2019-2026 — moved the N=20 flow-tilt variant from Sharpe 0.01 to 0.61 and turnover from 2,071%
+  to 926%, but it still only matched the index (CAGR 15.3% vs 14.0%, IR 0.06) after ~469 bps/yr
+  of costs — promising on turnover, not yet an edge. The next pre-registered experiment is 8-12
+  week holds with a signal that actually clears the cost line, not just a longer hold on the
+  same signal. Sleeve S stays a diagnostic line only until a fresh, pre-registered run passes
+  the acceptance bar in `docs/VALIDATION.md`.
 - **VM not yet provisioned.** Everything above runs on the Mac only. No Hetzner/GCP account has
   been created for this project; `deploy/install.sh` is untested against a real box.
 - **Telegram token not set.** `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` are blank in `.env`

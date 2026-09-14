@@ -205,8 +205,12 @@ Capacity: median order 0.01% of ADV20, p90 0.05%; turnover 2023%/yr; costs 1180 
 Every trial in the table above loses money after costs, and every trial trades an enormous
 amount to get there — turnover of roughly 1,800% to 2,150% of the book per year, which alone
 costs 1,180 to 1,360 basis points a year. The weekly design churns the whole book too often for
-whatever edge it has to survive. Sleeve S stays a diagnostic line only. The next pre-registered
-experiment (spec §12a) is a hold-period discipline — hold a position for a minimum of four
-weeks, exit only on a stop or once it falls past rank 3N — not a new signal. Until that
-experiment runs and passes this same protocol, Sleeve S is never exposed to Project Upstox as
-anything but a diagnostic line, per the guardrail in `README.md`.
+whatever edge it has to survive. Sleeve S stays a diagnostic line only. An exploratory, post-hoc
+(not pre-registered) run of a minimum-hold rule — 20 sessions minimum, hold while inside 3N, no
+trims, over the full 2019-2026 period — moved the N=20 flow-tilt variant from Sharpe 0.01 to
+0.61 and turnover from 2,071% to 926%, but it still only matched the index (CAGR 15.3% vs 14.0%,
+IR 0.06) at ~469 bps/yr of costs (spec §12a, updated 2026-09-14) — a promising direction on
+turnover, not yet an edge. The next pre-registered experiment is 8-12 week holds with a signal
+that clears the cost line, not just a longer hold on the same signal. Until an experiment run
+passes this same protocol, Sleeve S is never exposed to Project Upstox as anything but a
+diagnostic line, per the guardrail in `README.md`.
