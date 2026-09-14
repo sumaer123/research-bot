@@ -224,15 +224,21 @@ def features(as_of: Optional[str] = typer.Option(None, "--as-of"),
 @app.command()
 def rank(sleeve: str = typer.Option("L", "--sleeve"), as_of: Optional[str] = typer.Option(None, "--as-of"),
          top: Optional[int] = typer.Option(None, "--top", help="override N (default: the validated run's choice)"),
-         variant: Optional[str] = typer.Option(None, "--variant", help="override weights variant")):
+         variant: Optional[str] = typer.Option(None, "--variant", help="override weights variant"),
+         force: Optional[str] = typer.Option(None, "--force", help="proceed despite a quality BLOCKER; records the reason")):
     """Rank a sleeve on the latest (or given) feature date with the configuration the latest
     walk-forward run selected; store the list."""
     from .store import connect
+    from .store.quality_gate import assert_quality, QualityBlocked
     from .strategy.rank import rank_sleeve, validated_config
     from .strategy.sleeves import SleeveConfig
     con = connect()
     try:
         d = _d(as_of) or con.execute("SELECT max(as_of) FROM features").fetchone()[0]
+        try:
+            assert_quality(con, d, "rank", force_reason=force)
+        except QualityBlocked as e:
+            raise typer.BadParameter(str(e))
         cfg, verdict = validated_config(con, sleeve.upper())
         if top or variant:
             mk = SleeveConfig.L if sleeve.upper() == "L" else SleeveConfig.S
@@ -251,9 +257,11 @@ def rank(sleeve: str = typer.Option("L", "--sleeve"), as_of: Optional[str] = typ
 def backtest(sleeve: str = typer.Option("L", "--sleeve"), start: str = typer.Option("2017-01-01", "--start"),
              end: Optional[str] = typer.Option(None, "--end"), capital: float = typer.Option(1_000_000, "--capital"),
              top: int = typer.Option(30, "--top"), variant: str = typer.Option("base", "--variant"),
-             zero_brokerage: bool = typer.Option(False, "--zero-brokerage")):
+             zero_brokerage: bool = typer.Option(False, "--zero-brokerage"),
+             force: Optional[str] = typer.Option(None, "--force", help="proceed despite a quality BLOCKER; records the reason")):
     """Single backtest of one sleeve configuration; writes a report."""
     from .store import connect, new_run, end_run
+    from .store.quality_gate import assert_quality, QualityBlocked, record_forced
     from .strategy.sleeves import SleeveConfig
     from .validate.backtest import BacktestConfig, run_backtest
     from .validate.costs import DISCOUNT_BROKER, ZERO_BROKERAGE
@@ -261,6 +269,10 @@ def backtest(sleeve: str = typer.Option("L", "--sleeve"), start: str = typer.Opt
     con = connect()
     try:
         e = _d(end) or con.execute("SELECT max(trade_date) FROM trading_days").fetchone()[0]
+        try:
+            gate = assert_quality(con, e, "backtest", force_reason=force)
+        except QualityBlocked as ex:
+            raise typer.BadParameter(str(ex))
         sl = SleeveConfig.L(top_n=top, variant=variant) if sleeve.upper() == "L" else SleeveConfig.S(top_n=top, variant=variant)
         cfg = BacktestConfig(sleeve=sl, start=_d(start), end=e, capital=capital,
                              costs=ZERO_BROKERAGE if zero_brokerage else DISCOUNT_BROKER)
@@ -269,6 +281,8 @@ def backtest(sleeve: str = typer.Option("L", "--sleeve"), start: str = typer.Opt
         path = write_backtest_report(con, res, run_id, f"Backtest — Sleeve {sleeve.upper()} N={top} {variant}")
         from .validate.trials import log_backtest
         log_backtest(res.config, run_id, purpose="exploratory", report_path=path)
+        if gate["forced"]:
+            record_forced(con, run_id, gate["forced_reason"])
         end_run(con, run_id, "OK", str(path))
         typer.echo((path / "report.md").read_text())
     finally:
@@ -279,15 +293,21 @@ def backtest(sleeve: str = typer.Option("L", "--sleeve"), start: str = typer.Opt
 def validate(sleeve: str = typer.Option("L", "--sleeve"), start: str = typer.Option("2017-01-01", "--start"),
              end: Optional[str] = typer.Option(None, "--end"), holdout_start: str = typer.Option("2025-09-01", "--holdout-start"),
              capital: float = typer.Option(1_000_000, "--capital"), first_fold_year: int = typer.Option(2019, "--first-fold-year"),
-             purpose: str = typer.Option("protocol", "--purpose", help="exploratory|protocol|repair (trial ledger)")):
+             purpose: str = typer.Option("protocol", "--purpose", help="exploratory|protocol|repair (trial ledger)"),
+             force: Optional[str] = typer.Option(None, "--force", help="proceed despite a quality BLOCKER; records the reason")):
     """Pre-registered walk-forward validation with the acceptance bar; writes a report."""
     from .store import connect, new_run, end_run
+    from .store.quality_gate import assert_quality, QualityBlocked, record_forced
     from .validate.walkforward import WalkForwardConfig, run_walk_forward, _key
     from .validate.report import write_walkforward_report
     from .validate.trials import prior_distinct_trials, log_walkforward
     con = connect()
     try:
         e = _d(end) or con.execute("SELECT max(trade_date) FROM trading_days").fetchone()[0]
+        try:
+            gate = assert_quality(con, e, "validate", force_reason=force)
+        except QualityBlocked as ex:
+            raise typer.BadParameter(str(ex))
         hs = _d(holdout_start)
         years = list(range(first_fold_year, hs.year + 1))
         wf = WalkForwardConfig(sleeve=sleeve.upper(), start=_d(start), end=e, holdout_start=hs, fold_years=years, capital=capital)
@@ -296,7 +316,9 @@ def validate(sleeve: str = typer.Option("L", "--sleeve"), start: str = typer.Opt
         run_id = new_run(con, "validate", f"{sleeve} {start}..{e}")
         out = run_walk_forward(con, wf, progress=lambda m: typer.echo(m, err=True))
         path = write_walkforward_report(con, out, run_id)
-        log_walkforward(out, run_id, purpose=purpose, report_path=path)
+        log_walkforward(out, run_id, purpose="repair" if gate["forced"] else purpose, report_path=path)
+        if gate["forced"]:
+            record_forced(con, run_id, gate["forced_reason"])
         end_run(con, run_id, out["acceptance"]["verdict"], str(path))
         typer.echo((path / "report.md").read_text())
     finally:

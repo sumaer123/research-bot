@@ -10,6 +10,16 @@ from ..store import insert_rows
 
 REQUIRED_INDICES = ("Nifty 50", "Nifty 500", "India VIX")
 
+# Checks whose failure is a hard BLOCKER: they corrupt the price/index spine every downstream
+# number rests on. Everything else is a WARN (surfaced, never blocking). The quality gate
+# (store/quality_gate.py) refuses backtest/validate/rank on an unresolved BLOCKER.
+BLOCKER_CHECKS = frozenset({"bhavcopy_eq_rows", "no_duplicate_price_keys",
+                            "required_indices_present", "unexplained_price_jumps"})
+
+
+def severity(check_name: str) -> str:
+    return "BLOCKER" if check_name in BLOCKER_CHECKS else "WARN"
+
 
 def run_checks(con: duckdb.DuckDBPyConnection, run_id: str, as_of: date) -> list[dict]:
     out: list[dict] = []
