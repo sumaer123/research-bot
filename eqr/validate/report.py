@@ -69,7 +69,7 @@ def write_walkforward_report(con: duckdb.DuckDBPyConnection, wf: dict, run_id: s
     acc, o, d, h = wf["acceptance"], wf["oos"], wf["dsr"], wf["holdout"]
     md = [f"# Walk-forward validation — Sleeve {wf['sleeve']}", "",
           f"Run `{run_id}` · {wf['start']} → {wf['end']} · holdout from {wf['holdout_start']} · capital ₹{wf['capital']:,.0f} · "
-          f"{len(wf['grid'])} pre-registered trials", "",
+          f"rf {wf.get('rf_annual', 0.06):.1%} · impact {wf['costs'].get('impact_k_bps')} bps · {len(wf['grid'])} pre-registered trials", "",
           f"## Verdict: **{acc['verdict']}**", "", "| Check | Status | Detail |", "|---|---|---|"]
     md += [f"| {c['check']} | {c['status']} | {c['detail']} |" for c in acc["checks"]]
     md += ["", "## Out-of-sample (stitched folds, net of costs)", "",

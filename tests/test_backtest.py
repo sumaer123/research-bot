@@ -1,3 +1,4 @@
+import json
 from datetime import date
 
 import numpy as np
@@ -8,6 +9,31 @@ from eqr.strategy.sleeves import SleeveConfig
 from eqr.validate.backtest import BacktestConfig, run_backtest
 from eqr.validate.costs import ZERO_BROKERAGE
 from tests.conftest import make_synthetic_market
+
+
+def test_rf_annual_defaults_from_settings(monkeypatch):
+    monkeypatch.setenv("EQR_RISK_FREE_PCT", "7.5")
+    cfg = BacktestConfig(sleeve=SleeveConfig.L(), start=date(2020, 1, 1), end=date(2021, 1, 1))
+    assert cfg.rf_annual == 0.075
+    from eqr.validate.walkforward import WalkForwardConfig
+    wf = WalkForwardConfig(sleeve="L", start=date(2019, 1, 1), end=date(2021, 1, 1),
+                           holdout_start=date(2020, 6, 1), fold_years=[2019])
+    assert wf.rf_annual == 0.075
+
+
+def test_backtest_report_embeds_the_cost_model_and_rf(tmp_db, monkeypatch, tmp_path):
+    monkeypatch.setenv("EQR_DATA_DIR", str(tmp_path / "data"))
+    from eqr.validate.report import write_backtest_report
+    syms, days = make_synthetic_market(tmp_db, n_symbols=12, n_days=420, seed=7)
+    refresh_factors(tmp_db)
+    sl = SleeveConfig.L(top_n=8); sl.min_turnover_inr = 1.0; sl.require_positive_pat = False
+    cfg = BacktestConfig(sleeve=sl, start=days[300].date(), end=days[-1].date(), capital=1e6, reuse_features=False)
+    res = run_backtest(tmp_db, cfg)
+    path = write_backtest_report(tmp_db, res, "bt-embed", "t")
+    rj = json.loads((path / "report.json").read_text())
+    assert rj["config"]["costs"]["impact_k_bps"] == 50.0
+    assert rj["config"]["rf_annual"] == cfg.rf_annual
+    assert "rf" in (path / "report.md").read_text().lower()
 
 
 def test_planted_signal_is_recovered_and_no_lookahead(tmp_db):

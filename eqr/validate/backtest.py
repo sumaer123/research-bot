@@ -13,6 +13,7 @@ import duckdb
 import numpy as np
 import pandas as pd
 
+from ..config import settings
 from ..features.build import get_features
 from ..features.panel import PricePanel, load_panel, window_start
 from ..spine.universe import month_end_sessions, week_end_sessions
@@ -36,7 +37,7 @@ class BacktestConfig:
     rebalance_band: float = 0.01
     delist_haircut: float = 0.01
     delist_after_sessions: int = 5
-    rf_annual: float = 0.06
+    rf_annual: float = field(default_factory=lambda: settings().risk_free_pct / 100)
     reuse_features: bool = True
     base_min_turnover_inr: float = 1e7
 

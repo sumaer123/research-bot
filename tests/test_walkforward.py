@@ -27,6 +27,7 @@ def test_walk_forward_on_planted_market(tmp_db, monkeypatch, tmp_path):
                            robustness_turnover=(1.0,))
     out = run_walk_forward(tmp_db, wf)
     assert len(out["folds"]) >= 2 and out["oos"]["sharpe"] > 0
+    assert out["rf_annual"] == wf.rf_annual
     assert out["holdout"]["selected"] in out["grid"]
     assert set(c["check"] for c in out["acceptance"]["checks"]) >= {"oos_sharpe", "deflated_sharpe", "capacity"}
     path = write_walkforward_report(tmp_db, out, "wf-test")

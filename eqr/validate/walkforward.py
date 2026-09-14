@@ -10,6 +10,7 @@ import duckdb
 import numpy as np
 import pandas as pd
 
+from ..config import settings
 from ..features.panel import load_panel, window_start
 from ..strategy.regime import regime_table
 from ..strategy.sleeves import SleeveConfig
@@ -38,7 +39,7 @@ class WalkForwardConfig:
     embargo_days: int = 30
     purge_sessions: Optional[int] = None
     robustness_turnover: tuple[float, ...] = (3e7,)
-    rf_annual: float = 0.06
+    rf_annual: float = field(default_factory=lambda: settings().risk_free_pct / 100)
 
     def __post_init__(self):
         if not self.grid:
@@ -153,7 +154,7 @@ def run_walk_forward(con: duckdb.DuckDBPyConnection, wf: WalkForwardConfig,
                       if kk in ("cagr", "sharpe", "max_drawdown", "information_ratio", "turnover_annual",
                                 "costs_bps_annual", "excess_cagr", "final_equity")} for k, r in results.items()}
     return {"sleeve": wf.sleeve, "start": str(wf.start), "end": str(wf.end), "holdout_start": str(wf.holdout_start),
-            "capital": wf.capital, "costs": wf.costs.to_dict(), "grid": [_key(c) for c in wf.grid],
+            "capital": wf.capital, "costs": wf.costs.to_dict(), "rf_annual": wf.rf_annual, "grid": [_key(c) for c in wf.grid],
             "folds": folds, "oos": oos_metrics, "dsr": dsr, "holdout": holdout, "robustness": robustness,
             "capacity": capacity, "acceptance": acceptance, "per_config": per_config,
             "_results": results, "_oos": oos, "_oos_bench": oos_b}

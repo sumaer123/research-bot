@@ -19,6 +19,13 @@ def test_order_cost_hand_computed():
     assert ZERO_BROKERAGE.order_cost("BUY", 1e5, 1e8)["brokerage"] == 0
 
 
+def test_impact_coefficient_is_pinned_at_50_bps():
+    # the coefficient the shipped results were produced with; docs corrected to match code
+    from eqr.validate.costs import DISCOUNT_BROKER
+    assert DISCOUNT_BROKER.impact_k_bps == 50.0
+    assert CostModel().impact_k_bps == 50.0
+
+
 def test_sharpe_and_dsr_known_behaviour():
     rng = np.random.default_rng(0)
     idx = pd.bdate_range("2018-01-01", periods=1500)
