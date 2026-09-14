@@ -10,7 +10,7 @@ schema change. Env-var VALUES never appear here — names only; real values live
 Sumaer Research Bot (package `eqr`) — an independent, point-in-time Indian-equity research
 engine: it ranks the NSE universe (two sleeves, validated before trusted) and writes Claude
 research dossiers on request. It advises Project Upstox later through a read-only, fail-soft API
-line; it never places an order. Personal project (`sumaer123@gmail.com`), no `fe-` tools. Owner:
+line; it never places an order. Personal project, no `fe-` tools. Owner:
 Sumaer Bahl. Repo: private GitHub `https://github.com/sumaer123/research-bot` (`origin`, branch
 `main`). Deploy-toolkit registry key `research-bot`, model **data-only** (guards, auto-deploy,
 SQL migrations and agent-made env changes all `false` — see `.deploy-toolkit/registry.json`).
