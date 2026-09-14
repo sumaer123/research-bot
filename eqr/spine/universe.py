@@ -57,6 +57,11 @@ def build_universe(con: duckdb.DuckDBPyConnection, as_of: date, *, min_turnover_
 
 
 def store_universe(con: duckdb.DuckDBPyConnection, df: pd.DataFrame) -> int:
+    """Replace the whole as-of slice: a name that no longer qualifies must not linger."""
+    if df.empty:
+        return 0
+    for d in df["as_of"].unique():
+        con.execute("DELETE FROM universe_monthly WHERE as_of = ?", [d])
     return upsert(con, "universe_monthly", df)
 
 

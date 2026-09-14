@@ -124,7 +124,7 @@ def run_walk_forward(con: duckdb.DuckDBPyConnection, wf: WalkForwardConfig,
     sel_cfg = next(c for c in wf.grid if _key(c) == ho_best)
     variants = []
     for n in (20, 30):
-        for t in (sel_cfg.min_turnover_inr, *wf.robustness_turnover):
+        for t in dict.fromkeys((sel_cfg.min_turnover_inr, *wf.robustness_turnover)):      # unique floors
             c = SleeveConfig.L(top_n=n, variant=sel_cfg.variant) if wf.sleeve == "L" else SleeveConfig.S(top_n=n, variant=sel_cfg.variant)
             c.min_turnover_inr = t
             variants.append(c)

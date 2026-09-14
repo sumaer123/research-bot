@@ -74,6 +74,17 @@ Restatements: screener.in shows latest restated numbers. We store each fetch wit
 the PIT value; later fetches are stored as revisions (`statement_revisions`). Before the
 first fetch date, history is as-restated — a known, documented bias.
 
+Filing dates come from two NSE feeds (legacy `corporates-financial-results` to early 2025,
+`integrated-filing-results` from 2025); 84% of quarterly statements since 2016 carry a real
+filing date (median lag 42 days), the rest use the +45/+60-day rule. screener carries 13
+quarters and 12 fiscal years: before mid-2023 the trailing metrics fall back to the last
+visible fiscal year (`stmt_age_days` shows the staleness).
+
+Known survivorship bias (open item): delisted names have prices (the archive keeps them)
+but no screener page, so Sleeve L's fundamentals exist only for survivors — 823 of the
+1,225 names in the 2017–21 universe. Sleeve S (price-only) is free of it. Closing it means
+fetching statements for the ~450 delisted names by BSE code.
+
 ## 4. Data spine
 
 ### 4.1 Sources (all public, personal use, ≤ 1 req/s, cached raw)
@@ -87,13 +98,28 @@ first fetch date, history is as-restated — a known, documented bias.
 | NSE API (cookie warm-up) | corporate actions, financial-results filing dates, announcements (PDF links), ASM/GSM/ESM lists, shareholding, annual reports | daily / on demand | verified 200 from this Mac; 403 on datacenter IPs handled by SOCKS proxy fallback |
 | screener.in company pages | 12 y annual P&L/BS/CF/ratios, 13 quarters, shareholding, results PDF links | weekly sweep + daily for names with fresh results | regex over landmark sections; page change degrades to a quality flag, never a crash |
 
-### 4.2 Price adjustment (source-native)
+### 4.2 Price adjustment (corporate actions confirmed on the tape)
 
-NSE adjusts `PREV_CLOSE` on ex-dates (splits, bonus, rights, special dividends). The
-adjustment factor for symbol on date t is `prev_close_reported(t) / close(t-1)` whenever
-the two differ by more than 0.5% and the ratio lies in [0.02, 50]. Cumulative factors
-produce split-adjusted OHLC. This is PIT by construction and needs no extra source; the
-corporate-actions table is used to label the kind and to cross-check.
+Verified during the build (2026-09-14): NSE bhavcopies do NOT restate `PREV_CLOSE` on
+ex-dates (RELIANCE 28-Oct-2024 bonus: prev 2,655.70, open 1,337.00), so the tape alone
+cannot label events. The source of record is the NSE corporate-actions feed: the subject
+text yields the factor (bonus a:b → b/(a+b); split Rs X→Y → Y/X; consolidation X→Y →
+Y/X), and each action is CONFIRMED by the ex-date open gapping by roughly that factor
+(±35%), searching ±3 sessions; unconfirmed actions are recorded in `factor_anomalies`
+and not applied. A secondary scan catches clean-ratio gaps (1/2, 1/5, 1/10 …) that persist
+for three sessions with a matching jump in traded volume and no action on file (ETF
+splits, small caps missing from the feed); sub-₹5 names are excluded (tick artefacts).
+Rights and ordinary dividends are not adjusted. Result on 2016→2026: 707 confirmed
+actions + 67 gap-inferred; 44 anomalies.
+
+Other spine facts learned during the build: NSE holds weekend sessions (Budget
+Saturdays, Muhurat Sundays, DR-drill Saturdays) — ten were found and loaded; NSE also
+republishes Friday's `sec_bhavdata_full` under Sunday filenames in 2019–21, so the loader
+trusts the date inside the file, never the URL; the `ind_close_all` file occasionally
+carries a stray row dated another day, so index rows are filtered to the file's date;
+stocks move between the EQ and BE/BZ series during surveillance, so the price panel is
+continuous across series while eligibility is judged on EQ only; ETFs trade in the EQ
+series and are excluded via `eq_etfseclist.csv`.
 
 ### 4.3 Universe (PIT, liquidity-defined)
 
@@ -239,6 +265,26 @@ Secrets only in `.env` (Telegram token, advisor token, proxy URL, optional API k
 read-only. `data/` is gitignored (raw archives, DuckDB, PDFs). Deploy, env and push
 through production-engineer; docs through documentation-engineer; registry entry
 `research-bot` (model data-only until the VM exists).
+
+## 12a. Validation outcome (2026-09-14, first run of the pre-registered protocol)
+
+Sleeve L: VALIDATED. Stitched OOS 2019→Aug-2025, net of costs: CAGR 28.7% vs 17.1%
+(NIFTY 500 TR proxy), Sharpe 1.28 vs 0.73, MTM maxDD −22.2% vs −37.8%, IR 0.72, deflated
+Sharpe p = 0.005 (6 trials), 4 of 4 recent folds positive, robust across N ∈ {20, 30} and
+₹1/3 cr floors, median order 0.03% of ADV20 at ₹10 lakh. Holdout Sep-2025→Sep-2026:
+21.9% vs 1.9%, Sharpe 0.98. The selected configuration is N=20 momentum-tilt. Caveats
+carried with the verdict: the 2018–19 small-cap bust sits in the training window (full
+period 2017→2026 the same configuration shows 19.9% CAGR with a −46% drawdown); the
+boom years 2021 and 2023 carry much of the OOS excess; the fundamentals survivorship bias
+above; and the base configuration's full-period result was seen once before the
+protocol ran (engine bugs found and fixed in that pass are listed in 4.2).
+
+Sleeve S: NOT VALIDATED. OOS Sharpe −0.17, IR −0.87, DSR p = 0.84; turnover ~2,000%/yr
+costs 1,160–1,350 bps/yr. The weekly design churns the whole book every week; the next
+pre-registered experiment is a hold-period discipline (minimum four weeks, exit on stop or
+rank beyond 3N), not a signal change.
+
+Both reports live under `data/reports/validate-*/` and in the `backtests` table.
 
 ## 13. Build order
 
