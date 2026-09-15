@@ -104,6 +104,21 @@ anomalies. Rights issues and ordinary dividends are deliberately not adjusted.
 - Stocks migrate between the EQ and BE/BZ series during surveillance; the price panel stays
   continuous across series while universe eligibility (spec §4.3) is judged on EQ only.
 
+## Parallel Search MCP (web research) — `eqr/research/parallel_client.py`, `eqr/research/webresearch.py`
+
+Base `https://search.parallel.ai/mcp` (anonymous, free, no key required). Cadence: on-demand per `eqr dossier` run or manual `eqr webresearch` command; auto-runs inside every dossier unless `--no-web` is passed. Delivers: web search results (news, articles, regulatory announcements) to support dossier narrative. Three concurrent facets per symbol:
+1. Results — stock price, recent news, major announcements
+2. Actions + governance — corporate actions, board changes, management
+3. Sector + peers — industry trends, competitor moves
+
+PIT rule: `as_of` = query date, `visible_from` = published date from source. Stored in `web_sources` (raw results, facet column tracks which 3) and `news_items` (parsed headlines + links).
+
+Dossier narrative cites web evidence as `web:<src_id>` with **deterministically verified verbatim quotes** from the fetched page (every claim validated at parse time against the raw HTML). A >25% unsupported-quote strike rate (claims that fail verification) REJECTS the dossier outright; struck claims land in `data_gaps` for manual review.
+
+**Frozen credit:** Parallel account holds a $19.86 sign-up credit (`EQR_PARALLEL_ENABLED` activates it); this balance is never spent — the app's only consumption is against the free MCP quota. Balance < $20 logs a WARN; the credit is purely as-received.
+
+**Failure mode:** MCP timeout or quote verification failure does not crash the dossier — `--no-web` can skip the layer if the MCP is unreachable; a WARN is logged and dossier proceeds with text-only narrative.
+
 ## Not yet a wired-up source
 
 `pyproject.toml` declares a `yfinance` dependency, but as of 2026-09-14 no module under `eqr/`

@@ -69,6 +69,28 @@ and pack Claude is working from. Dossiers never change a rank; they are informat
 Claude never runs unattended on a VM — this command is always run from the Mac, by hand, on
 request.
 
+### Web research (Wave 1 — auto-runs in dossier, opt-out via --no-web)
+
+`eqr dossier` automatically enriches the narrative with web sources (news, announcements, regulatory filings) fetched from the Parallel Search MCP — three concurrent facets (results, governance/actions, sector/peers). Web citations are deterministically verified (every quoted line validated verbatim against the raw page); a >25% unsupported-quote strike rate rejects the dossier with a `data_gaps` note listing the unverified claims.
+
+Standalone web-research entry points:
+
+```
+eqr webresearch RELIANCE          # fetch + parse web sources for a symbol
+eqr parallel status               # check MCP reachability, credit balance, 7-day request counts
+```
+
+Command options for `eqr dossier`:
+
+```
+eqr dossier RELIANCE --no-web     # skip web layer (text-only dossier, faster)
+eqr dossier RELIANCE              # auto-run web research (default)
+```
+
+`eqr doctor` now includes `parallel_mcp` (MCP reachability) and `parallel_cli` (Parallel API CLI auth) probes, plus row counts for `web_sources` and `dossier_claims` (shows claim-to-evidence resolution).
+
+Web evidence enriches narrative text only — never feeds into the rating engine, scoring, features, or fund_metrics (doctrine enforced by a test in the suite).
+
 ## Nightly metrics & rating (Wave 3)
 
 The fundamental scoring engine runs on the Mac (calibration complete as of 2026-09-14; r1 NOT VALIDATED, claim DIAGNOSTIC):

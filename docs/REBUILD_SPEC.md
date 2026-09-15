@@ -124,6 +124,12 @@ Names and purpose only — values live in the gitignored `.env` (copied from `.e
 | `EQR_TAX_RATE_PCT` | Statutory corporate tax rate (%) used in NOPAT and WACC comps (rating engine only) | `.env` | optional (default 25.0) |
 | `EQR_TERMINAL_GROWTH_PCT` | Terminal growth rate (%) for DCF and valuation models (rating engine Pillar 6) | `.env` | optional (default 5.0) |
 | `EQR_EXPERIMENTS_DIR` | Override the experiments directory (default: `<project>/experiments`) | `.env` | optional |
+| `EQR_PARALLEL_ENABLED` | Enable Parallel Search MCP for web research in dossiers (true/false) | `.env` | optional (default true) |
+| `EQR_PARALLEL_MCP_URL` | Parallel Search MCP endpoint (e.g. `https://search.parallel.ai/mcp`) | `.env` | optional |
+| `EQR_PARALLEL_MAX_CALLS_PER_RUN` | Max concurrent requests to Parallel MCP per dossier run (rate limit) | `.env` | optional (default 3) |
+| `EQR_WEB_ALLOWED_DOMAINS` | Comma-separated list of allowed domains for quote verification (e.g. `nseindia.com,bseindia.com,economictimes.indiatimes.com`) | `.env` | optional |
+| `EQR_WEB_LOOKBACK_DAYS` | Days of historical web sources to retain (older rows deleted) | `.env` | optional (default 30) |
+| `EQR_WEB_FETCH_TOP_K` | Number of top search results per facet to fetch and store | `.env` | optional (default 5) |
 | `RESTIC_REPOSITORY` | Restic backup repository target | `.env` on the VM | required for `deploy/backup.sh` to do anything |
 | `RESTIC_PASSWORD` | Restic repository password | `.env` on the VM | required with `RESTIC_REPOSITORY` |
 | `B2_ACCOUNT_ID` | Backblaze B2 account id (restic backend) | `.env` on the VM | required with `RESTIC_REPOSITORY` |

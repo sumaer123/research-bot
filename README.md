@@ -167,6 +167,9 @@ today.
 - Dossiers never change ranks. Every claim in a dossier must cite a `[doc_id]` or a named table;
   a dossier with an unsupported claim fails validation and the run is rejected outright, never
   partially stored.
+- **Wave-1 web research** enriches dossier narrative TEXT only — it never feeds into ratings,
+  scoring, features, fund_metrics or any gate. The rating engine and strategy layers remain
+  decoupled from web sources (doctrine enforced by a test).
 - `data/` is gitignored (DuckDB file, raw archives, PDFs) — never committed.
 - Secrets live only in `.env` (never `.env.example`, never a doc). Env-var names only, in
   `docs/REBUILD_SPEC.md`.
