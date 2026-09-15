@@ -47,6 +47,20 @@ NSE archives/API, screener.in
 Code copied from Project Upstox (copies, never a shared tree, never edited back): fundamentals
 models, OHLCV helpers, NSE session warm-up, screener parser skeleton, Telegram sender.
 
+## Fundamental-research benchmark and roadmap (2026-09-15)
+
+[`INDIAN_EQUITY_FUNDAMENTAL_RESEARCH_BENCHMARKS.md`](INDIAN_EQUITY_FUNDAMENTAL_RESEARCH_BENCHMARKS.md)
+audits 36 open-source artifacts and turns the findings into an evidence-gated implementation
+roadmap. It is **research and proposed work, not implemented functionality**. The live engine
+already contains the forensic, valuation, six-pillar rating, sector-routing, XBRL and dossier
+modules that the roadmap names; the work is to populate authoritative XBRL and event data,
+enforce atomic statement basis, correct incomplete forensic formulae, expose governed valuation
+outputs, and add verified filing/concall evidence before testing a pre-registered ranking variant.
+
+No score path changed when the benchmark was authored. Rating engine **r1 `base` remains the
+published default and DIAGNOSTIC**; every proposed score-path change still requires PIT-safe
+fixtures, a full walk-forward rerun, validation-diff review, and the existing promotion gates.
+
 ## Quick start (Mac, local dev)
 
 The venv already exists at `.venv` (managed with `uv`, Python 3.13). To rebuild it from zero:
@@ -167,6 +181,8 @@ today.
 `docs/DATA_SOURCES.md` (every source, cadence, PIT rule, failure mode) ·
 `docs/OPERATIONS.md` (runbook, quality checks, dossiers, open items) ·
 `docs/VALIDATION.md` (protocol, acceptance bar, both sleeves' fold tables) ·
+`INDIAN_EQUITY_FUNDAMENTAL_RESEARCH_BENCHMARKS.md` (competitive benchmark and implementation
+roadmap; research only, not live functionality) ·
 `docs/superpowers/specs/2026-09-14-research-bot-design.md` (the approved design spec — read this
 first for anything not covered above) · `docs/superpowers/plans/2026-09-14-research-bot-plan.md`
 (the build plan).

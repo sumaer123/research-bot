@@ -41,6 +41,22 @@ Benchmarks: NIFTY 500 (TR proxy), NIFTY 50, and an equal-weight universe.
 A sleeve that fails even one line is reported NOT VALIDATED and is never exposed to Project
 Upstox as anything but a diagnostic line — see `README.md`'s guardrails.
 
+## Fundamental-research benchmark — validation impact
+
+The 2026-09-15 [competitive benchmark and roadmap](../INDIAN_EQUITY_FUNDAMENTAL_RESEARCH_BENCHMARKS.md)
+does not validate or ship a feature. It proposes authoritative XBRL/event population, corrected
+forensic formulae, governed valuation exposure, verified filing/concall evidence, and a separate
+pre-registered Magic Formula variant. **No score path changed:** rating engine r1 `base` remains
+the published default and DIAGNOSTIC, with the calibration outcome below unchanged.
+
+Every proposed score-path change is gated on PIT-safe fixtures and invariants first, followed by
+a full walk-forward rerun and validation-diff review. New formulae must fail `UNKNOWN`/`NA` on
+missing or inapplicable evidence rather than neutral-fill; historical statements must have one
+atomic basis; split-sensitive features must be invariant; and the experimental rank cannot use
+current market cap as historical EV. Promotion still requires the registered risk/return,
+turnover, coverage and stability gates—benchmark coverage or repository comparison is not a
+substitute for validation.
+
 ## Sleeve L — PROVISIONAL
 
 Source: `data/reports/validate-20260914-063318-1219c7/report.md` (2017-06-01 -> 2026-09-11,

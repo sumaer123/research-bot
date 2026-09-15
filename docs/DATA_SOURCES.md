@@ -1,9 +1,10 @@
 # Data Sources — Sumaer Research Bot (`eqr`)
 
-Every external source this project reads (or, for Telegram/Anthropic/B2, writes to). All are
-public, personal-use, rate-limited to <=1 request/second, and every raw fetch is cached to
-`data/raw/` before anything is parsed — a parser failure never loses the bytes it failed to
-parse. URL builders and parsers live in `eqr/spine/`.
+Every external source this project reads (or, for Telegram/Anthropic/B2, writes to). Live fetches
+are rate-limited to <=1 request/second, and every raw fetch is cached to `data/raw/` before
+anything is parsed — a parser failure never loses the bytes it failed to parse. Public reachability
+does not establish permission: source terms and account authorization still govern use. URL
+builders and parsers live in `eqr/spine/`.
 
 ## NSE archives (no cookies, no login) — `eqr/spine/nse_archives.py`
 
@@ -46,7 +47,9 @@ the VM is provisioned. `eqr doctor` checks it live (`/api/reportASM`).
 Base `https://www.screener.in`. Cadence: weekly full sweep plus daily for symbols with a fresh
 result. Delivers: 12 years of annual P&L/balance-sheet/cash-flow/ratios, 13 quarters,
 shareholding, results-PDF links — parsed by regex over landmark page sections, not a fixed HTML
-schema. PIT rule: screener shows the latest **restated** numbers; this project stores every fetch
+schema. Screener's official help describes premium CSV export and explicitly says it does not
+provide an API; this integration must not be described as an official API or as evidence of
+scraping permission. PIT rule: screener shows the latest **restated** numbers; this project stores every fetch
 with `fetched_at` and keeps the FIRST-seen value per (symbol, statement, period_end, line item)
 as the PIT value (table `statements`); later fetches land in `statement_revisions`. Before a
 symbol's first fetch date, its history is as-restated — a known, documented bias, not a bug.
@@ -60,6 +63,23 @@ last visible fiscal year (`stmt_age_days` on the row shows the staleness).
 returns a `blocked`/`missing` status rather than raising); `eqr fundamentals --fetch-only` stops
 itself after 5 consecutive blocks rather than burning the rest of the run against a rate limit or
 a changed page.
+
+## Benchmark roadmap sources — not live functionality
+
+The 2026-09-15 [fundamental-research benchmark](../INDIAN_EQUITY_FUNDAMENTAL_RESEARCH_BENCHMARKS.md)
+identifies the next authoritative-data work. This is a coverage ledger for proposed work, not a
+claim that these feeds or outputs are populated:
+
+| Area | Current live state in the benchmark snapshot | Roadmap contract before use |
+|---|---|---|
+| BSE/NSE XBRL | `eqr/spine/xbrl.py` and `eqr xbrl --backfill-from` already exist, but `statements_xbrl` and `xbrl_filings` contain 0 rows; only 4 of 128,886 result-calendar rows carry an XBRL URL | Add registry discovery and resumable backfill; retain raw registry/XML, namespace/taxonomy/context/unit/basis, URL/hash, filing/revision/retrieval times and parser version; select one atomic statement basis |
+| Pledge, insider and SAST events | Schemas/flags exist, but pledge, insider, named-holder, credit-rating and board-meeting inputs are empty | New versioned adapter after terms review; preserve event/dissemination/revision time, filing identity and both percentage denominators; no flag may fire on unknown denominator/date |
+| Filing/concall evidence | Announcements/documents are a one-symbol pilot; `doc_sections` and `dossiers` contain 0 rows | Store hashed source artifacts with publication time and page/span evidence; deterministically verify or refuse every extracted claim |
+
+The benchmark proposes a conservative internal source governor (one in-flight request per host,
+bounded retries/backoff, circuit breaking and immutable manifests). Those controls are roadmap
+requirements, not claims about exchange-published rate limits and not new commands in today's
+runbook.
 
 ## Corporate-action price adjustment (derived, not a separate fetch)
 

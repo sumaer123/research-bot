@@ -18,6 +18,12 @@ Today it runs Mac-local only; no production URL exists yet.
 Planned host: a new non-OCI VM (Hetzner CX32 or GCP e2-standard-2 Mumbai) — the OCI box is
 Upstox-only and this project is never deployed there.
 
+The root `INDIAN_EQUITY_FUNDAMENTAL_RESEARCH_BENCHMARKS.md` is a 2026-09-15 competitive audit
+and implementation roadmap, not a rebuild prerequisite or a description of shipped functionality.
+It extends the existing forensic/valuation/rating/XBRL/dossier architecture. It changed no schema,
+dependency, command, service, environment variable or score path; r1 `base` remains the published
+default.
+
 ## 2. Stack & runtime
 
 - Python 3.13, venv at `.venv` managed by `uv`.
@@ -42,7 +48,13 @@ Upstox-only and this project is never deployed there.
   `nse_api.py` (corporate actions, filing dates, ASM/GSM, shareholding, announcements),
   `screener.py` (screener.in parser + PIT statements loader), `adjust.py` (split/bonus factor
   detection + tape confirmation), `universe.py` (PIT liquidity universe), `quality.py`
-  (post-refresh quality harness), `refresh.py` (`daily_refresh` / `backfill` orchestration).
+  (post-refresh quality harness), `xbrl.py` (legacy/new/bank XBRL parser and existing backfill
+  command; production XBRL tables are unpopulated), `graph.py` (Graphify reader), `refresh.py`
+  (`daily_refresh` / `backfill` orchestration).
+- `eqr/fundamentals/` — existing metrics, forensic and multi-model valuation implementation;
+  the benchmark roadmap corrects/populates/exposes these modules rather than creating them.
+- `eqr/rating/` — existing versioned six-pillar rating engine, sector routing, flags, confidence,
+  decisions and append-only ledger; r1 `base` remains the published default and DIAGNOSTIC.
 - `eqr/features/` — `price.py`, `fundamental.py`, `panel.py` (loads the rolling window),
   `xsection.py` (winsorise/z-score/bucket), `build.py` (`build_features`).
 - `eqr/strategy/` — `regime.py`, `sleeves.py` (`SleeveConfig.L` / `.S`), `sizing.py`, `rank.py`
@@ -50,7 +62,8 @@ Upstox-only and this project is never deployed there.
 - `eqr/validate/` — `costs.py`, `backtest.py`, `walkforward.py`, `metrics.py`, `acceptance.py`,
   `report.py` (writes `data/reports/<kind>-<timestamp>-<hash>/report.md` + supporting CSV/JSON).
 - `eqr/research/` — `docstore.py` (filing/document sync), `pack.py` (`build_pack`), `dossier.py`
-  (`run_dossier`), `schema.py` / `schema.json` (dossier JSON schema).
+  (`run_dossier`), `schema.py` / `schema.json` (dossier JSON schema). Verified concall evidence
+  and richer dossier provenance are roadmap work, not live functionality.
 - `eqr/surfaces/` — `web/app.py` (FastAPI app) + `web/templates/*.html` + `web/static/`,
   `queries.py`, `md.py`, `digest.py`, `telegram.py` (send-only), `advisor_client.py` (reference
   client for Upstox's future R6 integration — fail-soft by construction).
