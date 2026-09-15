@@ -21,6 +21,29 @@ def _env(name: str, default: str = "") -> str:
     return v if v not in (None, "") else default
 
 
+def _bool(name: str, default: bool) -> bool:
+    v = os.environ.get(name)
+    if v in (None, ""):
+        return default
+    return v.strip().lower() in ("1", "true", "yes", "on")
+
+
+# Curated Indian financial-news domains used by default. This is the code default so an UNSET
+# var is safe (restricted). Setting EQR_WEB_ALLOWED_DOMAINS to the empty string is the explicit
+# opt-out ("allow all", i.e. no client-side domain filter).
+DEFAULT_WEB_ALLOWED_DOMAINS = (
+    "nseindia.com", "bseindia.com", "screener.in", "moneycontrol.com",
+    "economictimes.indiatimes.com", "business-standard.com", "livemint.com",
+)
+
+
+def _domains(name: str) -> tuple[str, ...]:
+    v = os.environ.get(name)
+    if v is None:
+        return DEFAULT_WEB_ALLOWED_DOMAINS
+    return tuple(d.strip() for d in v.split(",") if d.strip())
+
+
 @dataclass(frozen=True)
 class Settings:
     data_dir: Path
@@ -34,10 +57,20 @@ class Settings:
     anthropic_api_key: str
     claude_model: str
     risk_free_pct: float
+    parallel_enabled: bool
+    parallel_mcp_url: str
+    parallel_max_calls_per_run: int
+    web_allowed_domains: tuple[str, ...]
+    web_lookback_days: int
+    web_fetch_top_k: int
 
     @property
     def db_path(self) -> Path:
         return self.data_dir / "eqr.duckdb"
+
+    @property
+    def web_dir(self) -> Path:
+        return self.data_dir / "web"
 
     @property
     def raw_dir(self) -> Path:
@@ -70,4 +103,10 @@ def settings() -> Settings:
         anthropic_api_key=_env("ANTHROPIC_API_KEY"),
         claude_model=_env("EQR_CLAUDE_MODEL", "claude-opus-5"),
         risk_free_pct=float(_env("EQR_RISK_FREE_PCT", "6.0")),
+        parallel_enabled=_bool("EQR_PARALLEL_ENABLED", True),
+        parallel_mcp_url=_env("EQR_PARALLEL_MCP_URL", "https://search.parallel.ai/mcp"),
+        parallel_max_calls_per_run=int(_env("EQR_PARALLEL_MAX_CALLS_PER_RUN", "8")),
+        web_allowed_domains=_domains("EQR_WEB_ALLOWED_DOMAINS"),
+        web_lookback_days=int(_env("EQR_WEB_LOOKBACK_DAYS", "180")),
+        web_fetch_top_k=int(_env("EQR_WEB_FETCH_TOP_K", "3")),
     )

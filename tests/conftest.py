@@ -7,6 +7,9 @@ import pytest
 @pytest.fixture()
 def tmp_db(tmp_path, monkeypatch):
     monkeypatch.setenv("EQR_DATA_DIR", str(tmp_path / "data"))
+    # network safety: web research is OFF by default in tests so run_dossier's auto-web step is a
+    # no-op DISABLED. Tests that exercise the enabled path set EQR_PARALLEL_ENABLED=1 themselves.
+    monkeypatch.setenv("EQR_PARALLEL_ENABLED", "0")
     from eqr.store import connect
     con = connect(tmp_path / "data" / "eqr.duckdb")      # same path settings() resolves to
     yield con

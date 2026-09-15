@@ -26,3 +26,5 @@ ALTER TABLE ratings ADD COLUMN IF NOT EXISTS price DOUBLE;
 ALTER TABLE rating_ledger ADD COLUMN IF NOT EXISTS mos_at_publish DOUBLE;
 ALTER TABLE rating_ledger ADD COLUMN IF NOT EXISTS dci_at_publish DOUBLE;
 ALTER TABLE rating_ledger ADD COLUMN IF NOT EXISTS verdict_prev VARCHAR;
+-- Phase 6 / Parallel web research: which facet (results | actions | sector) surfaced a web source.
+ALTER TABLE web_sources ADD COLUMN IF NOT EXISTS facet VARCHAR;

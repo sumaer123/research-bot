@@ -54,6 +54,46 @@ def test_company_snapshot_is_flagged_not_point_in_time(tmp_db):
     assert pack["company_snapshot_current"]["pit"] is False
 
 
+def _add_web_source(tmp_db, src_id, symbol, visible_from, text, facet="results", published=None):
+    from eqr.config import settings
+    from datetime import datetime
+    rel = f"{symbol}/{src_id}.txt"
+    p = settings().web_dir / rel
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(text)
+    tmp_db.execute(
+        "INSERT INTO web_sources (src_id, symbol, run_id, url, title, published, source_kind, sha256, "
+        "text_path, fetched_at, as_of, visible_from, facet) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        [src_id, symbol, "r1", f"https://moneycontrol.com/{src_id}", f"title {src_id}", published,
+         "parallel_mcp_fetch", "sha", rel, datetime.now(), visible_from, visible_from, facet])
+
+
+def test_pack_web_section_is_point_in_time(tmp_db, monkeypatch, tmp_path):
+    monkeypatch.setenv("EQR_DATA_DIR", str(tmp_path / "data"))
+    as_of = _seed(tmp_db)
+    _add_web_source(tmp_db, "S05-wVIS", "S05", as_of - timedelta(days=5),
+                    "Kirloskar registers 16% YoY revenue growth in Q1.", published=as_of - timedelta(days=30))
+    _add_web_source(tmp_db, "S05-wHID", "S05", as_of + timedelta(days=5), "future news, must be hidden")
+    pack = build_pack(tmp_db, "S05", as_of, web=True)
+    assert "web" in pack and len(pack["web"]) == 1
+    w = pack["web"][0]
+    assert w["src_id"] == "S05-wVIS" and w["facet"] == "results" and w["excerpt"] and w["url"]
+    assert "web:<src_id>" in pack["citation_rules"]
+
+
+def test_pack_web_false_is_unchanged(tmp_db):
+    as_of = _seed(tmp_db)
+    _add_web_source(tmp_db, "S05-wVIS", "S05", as_of - timedelta(days=5), "some text")
+    pack = build_pack(tmp_db, "S05", as_of)                    # default web=False
+    assert "web" not in pack
+
+
+def test_pack_web_empty_sets_note(tmp_db):
+    as_of = _seed(tmp_db)
+    pack = build_pack(tmp_db, "S06", as_of, web=True)          # S06 has no web sources
+    assert pack["web"] == [] and "web_note" in pack
+
+
 def test_dossier_rejects_a_response_bound_to_the_wrong_symbol_or_date(tmp_db, monkeypatch, tmp_path):
     monkeypatch.setenv("EQR_DATA_DIR", str(tmp_path / "data"))
     as_of = _seed(tmp_db)

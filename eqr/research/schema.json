@@ -30,6 +30,7 @@
       "type": "object", "required": ["event", "expected_by", "direction", "citations"], "additionalProperties": false,
       "properties": {"event": {"type": "string"}, "expected_by": {"type": "string"},
                      "direction": {"type": "string", "enum": ["positive", "negative", "either"]},
+                     "quote": {"type": "string", "minLength": 15, "maxLength": 400},
                      "citations": {"type": "array", "items": {"type": "string"}}}}},
     "what_would_change_my_mind": {"type": "array", "minItems": 1, "maxItems": 5, "items": {"type": "string"}},
     "data_gaps": {"type": "array", "maxItems": 10, "items": {"type": "string"}},
@@ -39,12 +40,14 @@
     "claim": {
       "type": "object", "required": ["claim", "citations"], "additionalProperties": false,
       "properties": {"claim": {"type": "string", "minLength": 10, "maxLength": 600},
+                     "quote": {"type": "string", "minLength": 15, "maxLength": 400},
                      "citations": {"type": "array", "minItems": 1, "items": {"type": "string"}}}
     },
     "assessment": {
       "type": "object", "required": ["score", "summary", "citations"], "additionalProperties": false,
       "properties": {"score": {"type": "integer", "minimum": 1, "maximum": 5},
                      "summary": {"type": "string", "minLength": 20, "maxLength": 800},
+                     "quote": {"type": "string", "minLength": 15, "maxLength": 400},
                      "citations": {"type": "array", "minItems": 1, "items": {"type": "string"}}}
     }
   }

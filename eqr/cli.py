@@ -3,18 +3,55 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 import typer
 
 app = typer.Typer(help="Sumaer Research Bot (eqr)", no_args_is_help=True)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 
+FROZEN_CREDIT_USD = 19.86        # Sumaer's decision 2026-09-16: never spent; a lower balance = the credit moved
+
 
 def _d(s: Optional[str]) -> Optional[date]:
     return datetime.strptime(s, "%Y-%m-%d").date() if s else None
+
+
+def _parallel_status(con) -> dict:
+    """Read-only Parallel visibility: MCP reachability, CLI presence + frozen-credit balance, and
+    the last 7 days of web-research runs. Touches only the anonymous MCP and `balance get`."""
+    import time
+    from .config import settings
+    from .research.parallel_client import McpClient, cli_balance_usd, cli_path
+    s = settings()
+    t0 = time.monotonic()
+    mcp_ok = McpClient(s.parallel_mcp_url, max_calls=0).initialize()
+    mcp_ms = int((time.monotonic() - t0) * 1000)
+    balance = cli_balance_usd()
+    cutoff = datetime.now() - timedelta(days=7)
+    counts = dict(con.execute("SELECT mode, count(*) FROM research_runs WHERE started_at >= ? GROUP BY mode",
+                              [cutoff]).fetchall())
+    return {"enabled": s.parallel_enabled, "mcp_ok": bool(mcp_ok), "mcp_ms": mcp_ms,
+            "cli": cli_path() is not None, "balance": balance,
+            "web_sources": con.execute("SELECT count(*) FROM web_sources").fetchone()[0],
+            "dossier_claims": con.execute("SELECT count(*) FROM dossier_claims").fetchone()[0],
+            "webresearch_7d": counts.get("webresearch", 0), "dossier_web_7d": counts.get("dossier_web", 0)}
+
+
+def _parallel_lines(st: dict) -> list[str]:
+    bal = f"${st['balance']:.2f}" if st["balance"] is not None else "unknown"
+    warn = ""
+    if st["balance"] is not None and st["balance"] < FROZEN_CREDIT_USD:
+        warn = f"  WARN: below the frozen ${FROZEN_CREDIT_USD:.2f} credit — it may have been spent"
+    return [
+        f"parallel_mcp     {'ok' if st['mcp_ok'] else 'fail':<8} {st['mcp_ms']}ms",
+        f"parallel_cli     {'ok' if st['cli'] else 'missing':<8} {bal}{warn}",
+        f"rows:web_sources ok       {st['web_sources']}",
+        f"rows:dossier_claims ok    {st['dossier_claims']}",
+        f"runs_7d          webresearch {st['webresearch_7d']}  dossier_web {st['dossier_web_7d']}",
+    ]
 
 
 @app.command()
@@ -99,13 +136,17 @@ def doctor():
     checks.append(("nse_api_asm", r.status, r.http_status, r.bytes))
     con = connect()
     try:
-        for t in ("prices_daily", "trading_days", "index_daily", "statements", "features", "ranks"):
+        for t in ("prices_daily", "trading_days", "index_daily", "statements", "features", "ranks",
+                  "web_sources", "dossier_claims"):
             n = con.execute(f"SELECT count(*) FROM {t}").fetchone()[0]
             checks.append((f"rows:{t}", "ok", None, n))
+        parallel = _parallel_lines(_parallel_status(con))
     finally:
         con.close()
     for c in checks:
         typer.echo(f"{c[0]:<22} {c[1]:<8} {c[2] or '':<5} {c[3]}")
+    for line in parallel:
+        typer.echo(line)
 
 
 
@@ -591,13 +632,47 @@ def pack(symbol: str, as_of: Optional[str] = typer.Option(None, "--as-of")):
 
 @app.command()
 def dossier(symbol: str, as_of: Optional[str] = typer.Option(None, "--as-of"), model: Optional[str] = typer.Option(None, "--model"),
-            dry_run: bool = typer.Option(False, "--dry-run", help="build the pack and prompt only")):
-    """Run a Claude research dossier for a symbol (validated, cited, stored)."""
+            dry_run: bool = typer.Option(False, "--dry-run", help="build the pack and prompt only"),
+            no_web: bool = typer.Option(False, "--no-web", help="skip the automatic web-research pass")):
+    """Run a Claude research dossier for a symbol (validated, cited, stored). Web research is
+    gathered automatically and its claims verified against source text; --no-web skips it."""
     from .store import connect
     from .research.dossier import run_dossier
     con = connect()
     try:
-        typer.echo(json.dumps(run_dossier(con, symbol.upper(), _d(as_of), model=model, dry_run=dry_run), indent=1))
+        typer.echo(json.dumps(run_dossier(con, symbol.upper(), _d(as_of), model=model,
+                                          dry_run=dry_run, web=not no_web), indent=1))
+    finally:
+        con.close()
+
+
+@app.command()
+def webresearch(symbols: List[str] = typer.Argument(..., help="one or more NSE symbols"),
+                as_of: Optional[str] = typer.Option(None, "--as-of")):
+    """Gather web research for one or more symbols (Parallel free MCP). Prints one JSON line per
+    symbol; exits 0 even on PARTIAL/FAILED so a batch never aborts on one symbol."""
+    from .store import connect
+    from .research.webresearch import run_webresearch
+    con = connect()
+    try:
+        for sym in symbols:
+            typer.echo(json.dumps(run_webresearch(con, sym.upper(), _d(as_of)), default=str))
+    finally:
+        con.close()
+
+
+parallel_app = typer.Typer(help="Parallel free web-research visibility (read-only).", no_args_is_help=True)
+app.add_typer(parallel_app, name="parallel")
+
+
+@parallel_app.command("status")
+def parallel_status():
+    """MCP reachability, CLI + frozen-credit balance, and the last 7 days of web-research runs."""
+    from .store import connect
+    con = connect()
+    try:
+        for line in _parallel_lines(_parallel_status(con)):
+            typer.echo(line)
     finally:
         con.close()
 

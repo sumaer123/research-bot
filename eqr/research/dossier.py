@@ -4,6 +4,7 @@ A run that fails validation stores nothing."""
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import shutil
@@ -14,10 +15,14 @@ from pathlib import Path
 from typing import Optional
 
 import duckdb
+import pandas as pd
 
 from ..config import settings
+from ..store import upsert
 from .pack import build_pack
 from .schema import validate_dossier
+from .verify import REJECT_STRUCK_SHARE, verify_web_claims
+from .webresearch import run_webresearch
 
 DOSSIER_SCHEMA_VERSION = 1
 
@@ -27,10 +32,18 @@ Rules: use ONLY the pack provided. Every claim, assessment and catalyst must car
 instead of asserting it. Numbers are in INR crores unless stated. Be specific, sceptical and concise.
 Your output must be exactly one JSON object matching the schema below (no prose before or after it)."""
 
+SYSTEM_WEB = """The pack also carries a `web` array of recent web sources (id `web:<src_id>`). You MAY cite a web
+source as web:<src_id> in bull_case, bear_case, red_flags or catalysts to add recency or external colour. When you
+cite a web source, the item MUST also carry a `quote` field copied VERBATIM (a 15-400 char exact substring) from
+that source's excerpt — a deterministic checker will strike any web claim whose quote is not found in its source.
+Web sources add colour only: they never override the pack's numbers, ratings or gates. Assessments must cite the
+pack's tables/documents, not the web."""
 
-def _prompt(pack: dict, schema: dict) -> str:
+
+def _prompt(pack: dict, schema: dict, extra_system: str = "") -> str:
     slim = {k: v for k, v in pack.items() if not k.startswith("_")}
-    return (f"{SYSTEM}\n\nSCHEMA:\n{json.dumps(schema)}\n\nPACK:\n{json.dumps(slim, default=str)}\n\n"
+    system = SYSTEM + (("\n\n" + extra_system) if extra_system else "")
+    return (f"{system}\n\nSCHEMA:\n{json.dumps(schema)}\n\nPACK:\n{json.dumps(slim, default=str)}\n\n"
             f"Write the dossier for {pack['symbol']} as of {pack['as_of']}. Output the JSON object only.")
 
 
@@ -123,16 +136,29 @@ def render_markdown(d: dict) -> str:
 
 
 def run_dossier(con: duckdb.DuckDBPyConnection, symbol: str, as_of: Optional[date] = None,
-                model: Optional[str] = None, dry_run: bool = False, response_text: Optional[str] = None) -> dict:
+                model: Optional[str] = None, dry_run: bool = False, response_text: Optional[str] = None,
+                web: bool = True) -> dict:
+    """Auto-web is ON by default: gather web evidence (fail-soft), build a web-enriched pack, prompt
+    Claude, validate + bind, verify web quotes deterministically, and store the dossier plus its
+    claim rows. Wave-1 doctrine: web evidence enriches TEXT only — it never touches numbers."""
     model = model or settings().claude_model
-    pack = build_pack(con, symbol, as_of)
+    wr_status = None
+    if web:
+        try:
+            wr_status = (run_webresearch(con, symbol, as_of) or {}).get("status")
+        except Exception as e:                            # never let web research sink the dossier
+            wr_status = "FAILED"
+            logging.getLogger("eqr.dossier").warning("webresearch failed for %s: %s", symbol, e)
+    pack = build_pack(con, symbol, as_of, web=web)
+    web_rows = pack.get("web") or []
+    allowed_web = frozenset(w["src_id"] for w in web_rows)
     from .schema import SCHEMA
-    prompt = _prompt(pack, SCHEMA)
+    prompt = _prompt(pack, SCHEMA, SYSTEM_WEB if web_rows else "")
     path = Path(pack["_path"])
     (path / "prompt.txt").write_text(prompt)
     if dry_run:
         return {"status": "DRY_RUN", "prompt_path": str(path / "prompt.txt"), "prompt_chars": len(prompt),
-                "documents": len(pack["documents"])}
+                "documents": len(pack["documents"]), "web_sources": len(web_rows), "webresearch": wr_status}
     run_id = f"dossier-{symbol}-{pack['as_of']}-{uuid.uuid4().hex[:8]}"
 
     def _reject(errors: list) -> dict:
@@ -149,18 +175,42 @@ def run_dossier(con: duckdb.DuckDBPyConnection, symbol: str, as_of: Optional[dat
     except ValueError as e:
         return _reject([str(e)])
     allowed = {d["doc_id"] for d in pack["documents"]}
-    errors = validate_dossier(obj, allowed)
+    errors = validate_dossier(obj, allowed, allowed_web)
     if errors:
         return _reject(errors)
     binding = _binding_errors(obj, symbol, pack)
     if binding:
         return _reject(binding)
-    md = render_markdown(obj)
+
+    # deterministic web-quote verification (a no-op when web is off / there are no web citations)
+    texts = {w["src_id"]: w["excerpt"] for w in web_rows}
+    if web:
+        pruned, claim_rows, n_web, n_struck = verify_web_claims(obj, texts)
+        if n_web and (n_struck / n_web) > REJECT_STRUCK_SHARE:
+            return _reject([f"{n_struck}/{n_web} web quotes unsupported (> {REJECT_STRUCK_SHARE:.0%})"])
+        if pruned is not obj:
+            rev = validate_dossier(pruned, allowed, allowed_web)
+            if rev:
+                return _reject(["after striking unsupported web claims: " + e for e in rev])
+    else:
+        pruned, claim_rows, n_web, n_struck = obj, [], 0, 0
+
+    md = render_markdown(pruned)
     (path / "dossier.md").write_text(md)
     con.execute(
         "INSERT INTO dossiers (run_id, symbol, as_of, model, rating, confidence, json, markdown, status, schema_version, created_at)"
         " VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'STORED', ?, ?)",
-        [run_id, symbol, obj["as_of"], model, obj["rating"], float(obj["confidence"]), json.dumps(obj), md,
-         DOSSIER_SCHEMA_VERSION, datetime.now()])
-    return {"status": "STORED", "run_id": run_id, "rating": obj["rating"], "confidence": obj["confidence"],
-            "path": str(path / "dossier.md")}
+        [run_id, symbol, pruned["as_of"], model, pruned["rating"], float(pruned["confidence"]),
+         json.dumps(pruned), md, DOSSIER_SCHEMA_VERSION, datetime.now()])
+    if web:
+        if claim_rows:
+            upsert(con, "dossier_claims", pd.DataFrame(
+                [dict(r, run_id=run_id, symbol=symbol, as_of=pack["as_of"]) for r in claim_rows]))
+        upsert(con, "research_runs", pd.DataFrame([{
+            "run_id": run_id, "symbol": symbol, "as_of": pack["as_of"], "mode": "dossier_web",
+            "model": model, "status": "STORED", "cost_usd": 0.0,
+            "passes_json": json.dumps({"web_claims": n_web, "struck": n_struck,
+                                       "webresearch_status": wr_status}),
+            "started_at": datetime.now(), "ended_at": datetime.now()}]))
+    return {"status": "STORED", "run_id": run_id, "rating": pruned["rating"], "confidence": pruned["confidence"],
+            "path": str(path / "dossier.md"), "web_claims": n_web, "struck": n_struck, "webresearch": wr_status}

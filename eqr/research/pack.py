@@ -22,7 +22,7 @@ def _records(df: pd.DataFrame, n: Optional[int] = None) -> list[dict]:
 
 
 def build_pack(con: duckdb.DuckDBPyConnection, symbol: str, as_of: Optional[date] = None,
-               max_docs: int = 4, excerpt_chars: int = 12000) -> dict:
+               max_docs: int = 4, excerpt_chars: int = 12000, web: bool = False) -> dict:
     as_of = as_of or con.execute("SELECT max(trade_date) FROM trading_days").fetchone()[0]
     s = settings()
     inst = con.execute("SELECT * FROM instruments WHERE symbol = ?", [symbol]).df()
@@ -92,6 +92,25 @@ def build_pack(con: duckdb.DuckDBPyConnection, symbol: str, as_of: Optional[date
                           "table:<name> for anything from the JSON tables (prices, features, ranks, statements, "
                           "shareholding, surveillance, deals, announcements, peers, regime, corporate_actions, results_calendar).",
     }
+    if web:
+        from .webresearch import web_sources_for_pack
+        wdf = web_sources_for_pack(con, symbol, as_of, limit=12)
+        web_rows = []
+        for r in wdf.itertuples():
+            excerpt = document_excerpt(str(s.web_dir / r.text_path), 1500) if r.text_path else ""
+            web_rows.append({
+                "src_id": r.src_id, "facet": r.facet, "title": r.title, "url": r.url,
+                "published": (str(pd.Timestamp(r.published).date()) if pd.notna(r.published) else None),
+                "excerpt": excerpt})
+        pack["web"] = web_rows
+        if web_rows:
+            pack["citation_rules"] += (" Cite a web source as web:<src_id>; every web-cited claim MUST "
+                                       "carry a verbatim `quote` copied verbatim from that source's "
+                                       "excerpt. Web sources add colour and recency only — they never "
+                                       "override the pack's numbers, ratings or gates.")
+        else:
+            pack["web_note"] = "no web sources visible at as_of; do not invent web citations."
+
     out = s.packs_dir / f"{symbol}_{as_of}"
     out.mkdir(parents=True, exist_ok=True)
     (out / "pack.json").write_text(json.dumps(pack, indent=1, default=str))

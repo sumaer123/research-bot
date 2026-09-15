@@ -1,0 +1,25 @@
+{
+ "jsonrpc": "2.0",
+ "id": "web_fetch_short",
+ "result": {
+  "structuredContent": {
+   "extract_id": "extract_short",
+   "results": [
+    {
+     "url": "https://www.kirloskaroilengines.com/documents/6887317/b50e7b7c-5112-5dde-0ea8-6b38ff49621d",
+     "title": "acJrlosacar",
+     "publish_date": "2026-08-06",
+     "excerpts": [
+      "# **1ei rlos1ear**\n**PRESS RELEASE**\n**Kirloskar Oil Engines Registers 16% YoY Revenue Growth** in **Q1 FY27;**\n**Net Profit at ~99 Crore**\n\n## Oil Engines\nPune, India -August 61 2026: Kirloskar Oil Engines Limited (KOEL) (BSE: 533293; NSE: KIRLOSENG), a leader\nin the manufacturing of internal combustion engines, generator sets and agricultural equipment, with a\nsizable presence in international markets, announced today its unaudited financial results for the first\nquarter of the financial year ending March 31, 2027.\n**_Commenting on the results, Gauri Kirloskar, Vice Chairperson and Managing Director, Kirloskar Oil_**\n**_Engines, said,_** \"Ql FY27 marked another important milestone in KO El's transformation into a\n\n...\n\n**Ql** **FYZ7**\n**2,000 111 5.6%**\n- For details, please refer 'Note to the financial results' published on the stock exchanges.\n**About Kirloskar Oil Engines Ltd (KOH)**\n**Ql FY26**\n1,262 1,272 172\n_13.5%_\n110 _8.6%_\n**Ql FY26**\n1,762 134 _7.6%_\n\n...\n\n# **1<Jrlos1<ar**\n## **Oil Engines**\nthe meaning of applicable laws and regulations. Actual results may differ materially from those anticipated in the\nforward-looking statements. The Company assumes no obligation to update forward looking statements to reflect\nactual results, changed assumptions or other factors.\nFor **Kirloskar Oil Engines Limited**"
+     ],
+     "full_content": null
+    }
+   ],
+   "errors": [],
+   "warnings": null,
+   "metadata": null,
+   "session_id": "session_22dcdcdbf895a6057f2119bedb5aba1b"
+  },
+  "isError": false
+ }
+}
